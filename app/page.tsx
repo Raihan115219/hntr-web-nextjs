@@ -279,13 +279,13 @@ export default function HomePage() {
       if (window.__initReveal) {
         ensureHomeReveal();
       } else {
-        existing.addEventListener("load", ensureHomeReveal, { once: true });
+        existing.addEventListener("load", () => ensureHomeReveal(), { once: true });
       }
     } else {
       const script = document.createElement("script");
       script.src = "/assets/js/script-1.js";
       script.async = true;
-      script.onload = ensureHomeReveal;
+      script.onload = () => ensureHomeReveal();
       document.body.appendChild(script);
     }
   }, []);
