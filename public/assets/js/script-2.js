@@ -1,0 +1,1 @@
+function togglePool(b){b.closest('.npc').classList.toggle('open');}
