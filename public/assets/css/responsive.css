@@ -588,7 +588,7 @@
 
   .sb.mobile-bottom-nav .si.active {
     justify-content: flex-end !important;
-    padding-bottom: 10px !important;
+    padding-bottom: 8px !important;
     color: var(--nav-active-label) !important;
     background: transparent !important;
     overflow: visible !important;
@@ -627,7 +627,7 @@
 
   .sb.mobile-bottom-nav .si.active .si-icon {
     position: absolute;
-    top: -38px;
+    top: -26px;
     left: 50%;
     transform: translateX(-50%);
     width: 56px !important;
@@ -913,6 +913,10 @@
     border-radius: 10px;
     padding: 14px;
     box-shadow: var(--sh2);
+  }
+
+  .mobile-profile-card .privacy-eye {
+    display: none !important;
   }
 
   .mobile-profile-card .r-div {
@@ -2080,7 +2084,7 @@
     width: 56px !important;
     min-width: 56px !important;
     height: 56px !important;
-    top: -38px;
+    top: -26px;
   }
 
   .sb.mobile-bottom-nav .si.active .si-icon svg {

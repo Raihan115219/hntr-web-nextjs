@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { useRouter } from "nextjs-toploader/app";
 
 export default function LearnPage() {
   const router = useRouter();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.body.dataset.page = "learn";
     return () => {
       delete document.body.dataset.page;

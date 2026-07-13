@@ -31,6 +31,7 @@ type ActiveToast =
 function canShowToast() {
   if (typeof document === "undefined") return false;
   if (document.body.classList.contains("intro-active")) return false;
+  if (document.body.classList.contains("modal-open")) return false;
   const learnOverlay = document.getElementById("learnOverlay");
   if (learnOverlay && (learnOverlay as HTMLElement).style.display === "block") return false;
   return true;
