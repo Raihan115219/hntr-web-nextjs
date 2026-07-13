@@ -2,6 +2,7 @@
 
 import MainLayout from "../components/MainLayout";
 import { useEffect, useState } from "react";
+import { useRouter } from "nextjs-toploader/app";
 
 const RING_CIRC = 201.06;
 
@@ -407,6 +408,7 @@ function PosVal({ eth, usd }: { eth: string; usd: string }) {
 }
 
 export default function CollectionPage() {
+  const router = useRouter();
   const [collections, setCollections] = useState(COLLECTIONS);
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [posView, setPosView] = useState<PosView>("listed");
@@ -420,6 +422,10 @@ export default function CollectionPage() {
     );
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  const goToPoolDetail = (nftId: number) => {
+    router.push(`/pool/${nftId === 1 ? "54587" : nftId}`);
+  };
 
   const toggleCollection = (name: string) => {
     setCollections((prev) =>
@@ -622,7 +628,13 @@ export default function CollectionPage() {
                             </div>
                           </div>
                         </div>
-                        <button className="nc-view-btn">VIEW DETAILS</button>
+                        <button
+                          type="button"
+                          className="nc-view-btn"
+                          onClick={() => goToPoolDetail(nft.id)}
+                        >
+                          VIEW DETAILS
+                        </button>
                       </div>
                     );
                   })}

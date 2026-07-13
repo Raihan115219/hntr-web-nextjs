@@ -100,13 +100,16 @@ function ListingCard({
   profit: string;
   soon: boolean;
 }) {
+  const openListing = () => {
+    if (soon) return;
+    window.open("https://opensea.io", "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div
       className="lc"
       style={{ cursor: soon ? "not-allowed" : "pointer", opacity: soon ? 0.38 : 1 }}
-      onClick={() => {
-        if (!soon) console.log("View NFT detail");
-      }}
+      onClick={openListing}
     >
       <img className="lcimg" src={img} alt={name} />
       <div className="src-logo">
@@ -139,10 +142,11 @@ function ListingCard({
         </div>
         <button
           className="lcbtn"
+          type="button"
           disabled={soon}
           onClick={(e) => {
             e.stopPropagation();
-            if (!soon) console.log("View Listing");
+            openListing();
           }}
         >
           {soon ? "Coming Soon" : "View Listing"}
@@ -902,9 +906,9 @@ export default function HomePage() {
                       →
                     </button>
                   </div>
-                  <a className="va" style={{ cursor: 'pointer' }} onClick={() => router.push("/pools")}>
+                  <Link href="/pools" className="va" style={{ cursor: "pointer" }}>
                     View All Pools
-                  </a>
+                  </Link>
                 </div>
               </div>
 

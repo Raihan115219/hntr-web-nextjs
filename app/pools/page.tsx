@@ -297,6 +297,7 @@ export default function PoolsPage() {
                         </div>
                       </div>
                       <button
+                        type="button"
                         className="npc-insights"
                         onClick={() => goToPool(pool.id)}
                       >
