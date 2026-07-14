@@ -182,7 +182,7 @@ export default function HomePage() {
   const [marketTimeFrame, setMarketTimeFrame] = useState("24H");
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSlideWidth, setMobileSlideWidth] = useState(0);
-  const cardCount = 3;
+  const cardCount = 4;
   const cardWidth = 468;
   const cardGap = 14;
   const cardStep = cardWidth + cardGap;
@@ -1401,6 +1401,77 @@ export default function HomePage() {
                       <div className="npc-db"><div className="npc-dl">ETH Profit</div><div className="npc-dv">2.10 <span className="eth-ic"></span></div></div>
                       <div className="npc-db"><div className="npc-dl">USDT Profit</div><div className="npc-dv">$5,040</div></div>
                       <div className="npc-db"><div className="npc-dl">Users</div><div className="npc-dv">88</div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="npc">
+                  <div className="npc-row">
+                    <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
+                      <img src="/assets/images/image-7.jpg" alt="Azuki" />
+                      <div className="npc-pool">POOL #4521</div>
+                    </div>
+                    <div className="npc-body">
+                      <div className="npc-head">
+                        <div>
+                          <div className="npc-name">Azuki <span>#4521</span></div>
+                          <div className="npc-tags">
+                            <span className="npc-tag">AZUKI</span>
+                            <span className="npc-tag">SERIES 2/8888</span>
+                          </div>
+                        </div>
+                        <button className="npc-insights" onClick={() => router.push("/pool/54587")}>
+                          <i></i>VIEW INSIGHTS
+                        </button>
+                      </div>
+                      <div className="npc-stats">
+                        <div>
+                          <div className="npc-sl">Pool Target</div>
+                          <div className="npc-sv">8.50<span className="eth-ic"></span></div>
+                          <div className="npc-su">$18,678.90</div>
+                        </div>
+                        <div>
+                          <div className="npc-sl">Community Raised</div>
+                          <div className="npc-sv raised">6.12<span className="eth-ic"></span></div>
+                          <div className="npc-su">$13,448.64</div>
+                        </div>
+                      </div>
+                      <div className="npc-prog">
+                        <div className="npc-pr">
+                          <span>POOL PROGRESS</span>
+                          <span className="pct">72.0%</span>
+                        </div>
+                        <div className="npc-pb">
+                          <div className="npc-pf" style={{ width: '72.0%' }}></div>
+                        </div>
+                      </div>
+                      <div className="npc-act">
+                        <button className="npc-btn-d" onClick={(e) => {
+                          const npcCard = e.currentTarget.closest('.npc');
+                          if (npcCard) {
+                            npcCard.classList.toggle('open');
+                            const caret = e.currentTarget.querySelector('.car');
+                            if (caret) caret.textContent = npcCard.classList.contains('open') ? '▴' : '▾';
+                          }
+                        }}>
+                          <span className="car">▾</span>Pool Details
+                        </button>
+                        <button
+                          className="npc-btn-p"
+                          type="button"
+                          onClick={() => openDepositModal("Azuki #4521", "8.50")}
+                        >
+                          Make a Deposit Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="npc-detail">
+                    <div className="npc-detail-in">
+                      <div className="npc-db"><div className="npc-dl">GP Profit</div><div className="npc-dv">9.80%</div></div>
+                      <div className="npc-db"><div className="npc-dl">ETH Profit</div><div className="npc-dv">1.92 <span className="eth-ic"></span></div></div>
+                      <div className="npc-db"><div className="npc-dl">USDT Profit</div><div className="npc-dv">$4,220</div></div>
+                      <div className="npc-db"><div className="npc-dl">Users</div><div className="npc-dv">104</div></div>
                     </div>
                   </div>
                 </div>
