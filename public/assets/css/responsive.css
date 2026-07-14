@@ -1177,6 +1177,10 @@
     overflow: hidden;
   }
 
+  .home-footer {
+    display: none !important;
+  }
+
   #panel-home .np-grid {
     display: flex !important;
     align-items: stretch !important;

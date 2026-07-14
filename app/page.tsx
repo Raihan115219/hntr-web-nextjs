@@ -85,6 +85,17 @@ const LISTING_CARDS = [
   { img: "/assets/images/image-4.jpg", name: "COMING SOON", bought: "--", sell: "--", profit: "--", soon: true },
 ];
 
+const SALES_CARDS = [
+  { img: "/assets/images/image-11.jpg", name: "Bored Ape YC #3425", bought: "7.50", sale: "8.25", profit: "+10%" },
+  { img: "/assets/images/image-6.jpg", name: "Bored Ape YC #7821", bought: "8.64", sale: "9.50", profit: "+9.9%" },
+  { img: "/assets/images/image-3.jpg", name: "CryptoPunks #5421", bought: "29.23", sale: "32.15", profit: "+10%" },
+  { img: "/assets/images/image-7.jpg", name: "Bored Ape YC #9321", bought: "7.09", sale: "7.80", profit: "+10%" },
+  { img: "/assets/images/image-5.jpg", name: "Azuki #1245", bought: "5.14", sale: "5.65", profit: "+9.9%" },
+  { img: "/assets/images/image-8.jpg", name: "Bored Ape YC #4523", bought: "8.09", sale: "8.90", profit: "+10%" },
+  { img: "/assets/images/image-4.jpg", name: "Doodles #2341", bought: "5.73", sale: "6.30", profit: "+9.9%" },
+  { img: "/assets/images/image-9.jpg", name: "Pudgy Penguins #6754", bought: "4.41", sale: "4.85", profit: "+10%" }
+];
+
 function ListingCard({
   img,
   name,
@@ -171,10 +182,21 @@ export default function HomePage() {
   const [marketTimeFrame, setMarketTimeFrame] = useState("24H");
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSlideWidth, setMobileSlideWidth] = useState(0);
-  const totalSlides = 3;
+  const cardCount = 3;
   const cardWidth = 468;
   const cardGap = 14;
+  const cardStep = cardWidth + cardGap;
   const npViewportRef = useRef<HTMLDivElement | null>(null);
+  const salesMarqueeRef = useRef<HTMLDivElement | null>(null);
+  const salesTrackRef = useRef<HTMLDivElement | null>(null);
+  const contentWidth = cardCount * cardWidth + (cardCount - 1) * cardGap;
+  const desktopMaxOffset = Math.max(0, contentWidth - mobileSlideWidth);
+  const desktopMaxSlide =
+    desktopMaxOffset <= 0 ? 0 : Math.ceil(desktopMaxOffset / cardStep);
+  const maxSlide = isMobile ? cardCount - 1 : desktopMaxSlide;
+  const slideOffset = isMobile
+    ? currentSlide * (mobileSlideWidth || 0)
+    : Math.min(currentSlide * cardStep, desktopMaxOffset);
   
   const titleCharsRef = useRef(buildTimedChars(TITLE_SEGMENTS, 46));
   const subCharsRef = useRef(buildTimedChars(SUB_SEGMENTS, 15));
@@ -250,6 +272,233 @@ export default function HomePage() {
       window.removeEventListener("resize", measure);
     };
   }, [isMobile, loaderOut]);
+
+  // Keep slide index in range when viewport/max slides change
+  useEffect(() => {
+    setCurrentSlide((prev) => Math.min(prev, maxSlide));
+  }, [maxSlide]);
+
+  const canGoPrev = currentSlide > 0;
+  const canGoNext = currentSlide < maxSlide;
+
+  const goToPrevSlide = () => {
+    if (!canGoPrev) return;
+    setCurrentSlide((prev) => Math.max(0, prev - 1));
+  };
+
+  const goToNextSlide = () => {
+    if (!canGoNext) return;
+    setCurrentSlide((prev) => Math.min(maxSlide, prev + 1));
+  };
+
+  // Drag-to-scroll sales marquee (mouse + touch) with infinite autoplay
+  useEffect(() => {
+    const marquee = salesMarqueeRef.current;
+    const track = salesTrackRef.current;
+    if (!marquee || !track) return;
+
+    track.classList.add("is-drag-controlled");
+    marquee.classList.add("is-drag-enabled");
+
+    let offset = 0;
+    let half = 0;
+    let paused = false;
+    let raf = 0;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    const speed = 0.45;
+
+    const measure = () => {
+      half = track.scrollWidth / 2;
+    };
+
+    const wrap = (value: number) => {
+      if (half <= 0) return 0;
+      let x = value % half;
+      if (x > 0) x -= half;
+      if (x <= -half) x += half;
+      return x;
+    };
+
+    const apply = () => {
+      track.style.transform = `translate3d(${offset}px,0,0)`;
+    };
+
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (!paused && half > 0) {
+        offset = wrap(offset - speed);
+        apply();
+      }
+    };
+
+    let dragging = false;
+    let moved = false;
+    let pointerId: number | null = null;
+    let axis: "x" | "y" | null = null;
+    let startX = 0;
+    let startY = 0;
+    let startOffset = 0;
+    let lastX = 0;
+    let lastT = 0;
+    let velocity = 0;
+    let coasting = false;
+
+    const clearResume = () => {
+      if (resumeTimer) {
+        clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
+    };
+
+    const scheduleResume = (delay = 900) => {
+      clearResume();
+      resumeTimer = setTimeout(() => {
+        paused = false;
+        coasting = false;
+        marquee.classList.remove("is-dragging");
+      }, delay);
+    };
+
+    const startDrag = (clientX: number, clientY: number, id: number) => {
+      clearResume();
+      coasting = false;
+      pointerId = id;
+      startX = clientX;
+      startY = clientY;
+      startOffset = offset;
+      lastX = clientX;
+      lastT = performance.now();
+      velocity = 0;
+      axis = null;
+      moved = false;
+      dragging = true;
+      paused = true;
+    };
+
+    const moveDrag = (clientX: number, clientY: number, e: Event) => {
+      if (!dragging) return;
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+
+      if (axis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        if (axis === "y") {
+          dragging = false;
+          pointerId = null;
+          marquee.classList.remove("is-dragging");
+          scheduleResume(300);
+          return;
+        }
+        marquee.classList.add("is-dragging");
+      }
+
+      if (axis !== "x") return;
+      e.preventDefault();
+      moved = true;
+      const now = performance.now();
+      const dt = Math.max(8, now - lastT);
+      velocity = (clientX - lastX) / dt;
+      lastX = clientX;
+      lastT = now;
+      offset = wrap(startOffset + dx);
+      apply();
+    };
+
+    const endDrag = () => {
+      if (!dragging && axis !== "x") {
+        pointerId = null;
+        return;
+      }
+      dragging = false;
+      pointerId = null;
+
+      if (axis === "x" && moved) {
+        coasting = true;
+        const coast = () => {
+          if (!coasting) return;
+          velocity *= 0.92;
+          if (Math.abs(velocity) > 0.05) {
+            offset = wrap(offset + velocity * 16);
+            apply();
+            requestAnimationFrame(coast);
+          } else {
+            coasting = false;
+            scheduleResume(700);
+          }
+        };
+        requestAnimationFrame(coast);
+      } else {
+        scheduleResume(300);
+      }
+      axis = null;
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      startDrag(e.clientX, e.clientY, e.pointerId);
+      try {
+        marquee.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (pointerId !== null && e.pointerId !== pointerId) return;
+      moveDrag(e.clientX, e.clientY, e);
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (pointerId !== null && e.pointerId !== pointerId) return;
+      try {
+        if (pointerId !== null) marquee.releasePointerCapture(pointerId);
+      } catch {
+        /* ignore */
+      }
+      endDrag();
+    };
+
+    const onMouseEnter = () => {
+      if (!dragging) paused = true;
+    };
+    const onMouseLeave = () => {
+      if (!dragging && !coasting) paused = false;
+    };
+
+    measure();
+    apply();
+    raf = requestAnimationFrame(tick);
+
+    const ro = new ResizeObserver(() => {
+      measure();
+      offset = wrap(offset);
+      apply();
+    });
+    ro.observe(track);
+
+    marquee.addEventListener("pointerdown", onPointerDown);
+    marquee.addEventListener("pointermove", onPointerMove);
+    marquee.addEventListener("pointerup", onPointerUp);
+    marquee.addEventListener("pointercancel", onPointerUp);
+    marquee.addEventListener("mouseenter", onMouseEnter);
+    marquee.addEventListener("mouseleave", onMouseLeave);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearResume();
+      coasting = false;
+      ro.disconnect();
+      marquee.removeEventListener("pointerdown", onPointerDown);
+      marquee.removeEventListener("pointermove", onPointerMove);
+      marquee.removeEventListener("pointerup", onPointerUp);
+      marquee.removeEventListener("pointercancel", onPointerUp);
+      marquee.removeEventListener("mouseenter", onMouseEnter);
+      marquee.removeEventListener("mouseleave", onMouseLeave);
+      track.classList.remove("is-drag-controlled");
+      marquee.classList.remove("is-drag-enabled", "is-dragging");
+      track.style.transform = "";
+    };
+  }, [loaderOut]);
 
   useEffect(() => {
     const t = setTimeout(() => setLoaderOut(true), 1150);
@@ -379,16 +628,10 @@ export default function HomePage() {
     // Force reflow to ensure accurate measurements
     void cv.offsetHeight;
     
-    // Measure from position (intro canvas in its natural position)
-    // Add small delay on large screens for accurate measurement
-    const isLargeScreen = window.innerWidth >= 1440;
-    if (isLargeScreen && !isPinned) {
-      requestAnimationFrame(() => {
-        canvasFromRef.current = cv.getBoundingClientRect();
-      });
-    } else {
-      canvasFromRef.current = cv.getBoundingClientRect();
-    }
+    // Always measure FROM synchronously before pinning — async measure left the
+    // canvas fixed at CSS 100%/100% for a frame (fullscreen flash).
+    const fromRect = cv.getBoundingClientRect();
+    canvasFromRef.current = fromRect;
     
     // Temporarily show feed to measure hero position
     const savedTransform = feed.style.transform;
@@ -407,19 +650,23 @@ export default function HomePage() {
     heroRadiusRef.current = parseFloat(styles.borderTopLeftRadius) || 10;
     
     // Calculate scale for hover effect
-    if (canvasFromRef.current && canvasToRef.current) {
-      (cv as any).__rscale = canvasToRef.current.height / canvasFromRef.current.height;
-    }
+    (cv as any).__rscale = canvasToRef.current.height / fromRect.height;
     
     feed.style.transform = savedTransform;
     feed.style.transition = savedTransition;
     feed.style.opacity = savedOpacity;
     
-    // Set to fixed positioning for animation
+    // Pin with FROM dimensions applied immediately so it never flashes fullscreen
     cv.style.position = "fixed";
     cv.style.margin = "0";
     cv.style.inset = "auto";
+    cv.style.left = fromRect.left + "px";
+    cv.style.top = fromRect.top + "px";
+    cv.style.width = fromRect.width + "px";
+    cv.style.height = fromRect.height + "px";
+    cv.style.borderRadius = "14px 0 0 14px";
     cv.style.zIndex = "940";
+    cv.style.opacity = "1";
     
     // Move to body for proper stacking
     if (cv.parentNode !== document.body) {
@@ -844,8 +1091,9 @@ export default function HomePage() {
                 <div className="sh-strategies-right">
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button
-                      onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
-                      disabled={currentSlide === 0}
+                      onClick={goToPrevSlide}
+                      disabled={!canGoPrev}
+                      aria-label="Previous strategy"
                       style={{
                         width: '32px',
                         height: '32px',
@@ -853,16 +1101,16 @@ export default function HomePage() {
                         border: '1px solid var(--bd1)',
                         background: 'var(--e2)',
                         color: 'var(--t3)',
-                        cursor: currentSlide === 0 ? 'not-allowed' : 'pointer',
+                        cursor: canGoPrev ? 'pointer' : 'not-allowed',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '16px',
-                        opacity: currentSlide === 0 ? 0.4 : 1,
+                        opacity: canGoPrev ? 1 : 0.4,
                         transition: 'all .15s'
                       }}
                       onMouseEnter={(e) => {
-                        if (currentSlide > 0) {
+                        if (canGoPrev) {
                           e.currentTarget.style.background = 'var(--e3)';
                           e.currentTarget.style.borderColor = 'var(--bd2)';
                         }
@@ -875,8 +1123,9 @@ export default function HomePage() {
                       ←
                     </button>
                     <button
-                      onClick={() => setCurrentSlide(prev => Math.min(totalSlides - 1, prev + 1))}
-                      disabled={currentSlide === totalSlides - 1}
+                      onClick={goToNextSlide}
+                      disabled={!canGoNext}
+                      aria-label="Next strategy"
                       style={{
                         width: '32px',
                         height: '32px',
@@ -884,16 +1133,16 @@ export default function HomePage() {
                         border: '1px solid var(--bd1)',
                         background: 'var(--e2)',
                         color: 'var(--t3)',
-                        cursor: currentSlide === totalSlides - 1 ? 'not-allowed' : 'pointer',
+                        cursor: canGoNext ? 'pointer' : 'not-allowed',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '16px',
-                        opacity: currentSlide === totalSlides - 1 ? 0.4 : 1,
+                        opacity: canGoNext ? 1 : 0.4,
                         transition: 'all .15s'
                       }}
                       onMouseEnter={(e) => {
-                        if (currentSlide < totalSlides - 1) {
+                        if (canGoNext) {
                           e.currentTarget.style.background = 'var(--e3)';
                           e.currentTarget.style.borderColor = 'var(--bd2)';
                         }
@@ -924,12 +1173,7 @@ export default function HomePage() {
                 <div 
                   className="np-grid" 
                   style={{ 
-                    transform: `translateX(-${
-                      currentSlide *
-                      (isMobile
-                        ? (mobileSlideWidth || 0)
-                        : cardWidth + cardGap)
-                    }px)`,
+                    transform: `translateX(-${slideOffset}px)`,
                     transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                     overflow: 'visible',
                     marginBottom: '0',
@@ -1294,237 +1538,29 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="sales-marquee">
-                <div className="sales-track" id="salesTrack">
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-11.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #3425</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">7.50 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">8.25 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-6.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #7821</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">8.64 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">9.50 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+9.9%</div>
+              <div className="sales-marquee" ref={salesMarqueeRef}>
+                <div className="sales-track" id="salesTrack" ref={salesTrackRef}>
+                  {[...SALES_CARDS, ...SALES_CARDS].map((sale, idx) => (
+                    <div className="sc" key={`${sale.name}-${idx}`}>
+                      <div className="badge bsold">SOLD</div>
+                      <img className="scimg" src={sale.img} alt={sale.name} draggable={false} />
+                      <div className="scb">
+                        <div className="scn">{sale.name}</div>
+                        <div className="scrow">
+                          <div className="lck">BOUGHT</div>
+                          <div className="lcv">{sale.bought} <span className="eth-ic"></span></div>
+                        </div>
+                        <div className="scrow">
+                          <div className="lck">SALE</div>
+                          <div className="lcv">{sale.sale} <span className="eth-ic"></span></div>
+                        </div>
+                        <div className="scrow">
+                          <div className="lck">PROFIT</div>
+                          <div className="lcg">{sale.profit}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-3.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">CryptoPunks #5421</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">29.23 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">32.15 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-7.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #9321</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">7.09 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">7.80 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-5.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Azuki #1245</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">5.14 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">5.65 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+9.9%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-8.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #4523</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">8.09 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">8.90 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-4.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Doodles #2341</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">5.73 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">6.30 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+9.9%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-9.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Pudgy Penguins #6754</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">4.41 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">4.85 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Duplicate for seamless loop */}
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-11.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #3425</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">7.50 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">8.25 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-6.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #7821</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">8.64 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">9.50 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+9.9%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-3.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">CryptoPunks #5421</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">29.23 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">32.15 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sc">
-                    <div className="badge bsold">SOLD</div>
-                    <img className="scimg" src="/assets/images/image-7.jpg" alt="Sold NFT" />
-                    <div className="scb">
-                      <div className="scn">Bored Ape YC #9321</div>
-                      <div className="scrow">
-                        <div className="lck">BOUGHT</div>
-                        <div className="lcv">7.09 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">SALE</div>
-                        <div className="lcv">7.80 <span className="eth-ic"></span></div>
-                      </div>
-                      <div className="scrow">
-                        <div className="lck">PROFIT</div>
-                        <div className="lcg">+10%</div>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 
