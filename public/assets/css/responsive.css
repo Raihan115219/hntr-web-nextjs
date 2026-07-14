@@ -1181,6 +1181,15 @@
     display: none !important;
   }
 
+  /* Tighten space between last home section and mobile bottom nav */
+  #feed-home .sales-marquee {
+    margin-bottom: 0 !important;
+  }
+
+  #feed-home.feed {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
   #panel-home .np-grid {
     display: flex !important;
     align-items: stretch !important;
