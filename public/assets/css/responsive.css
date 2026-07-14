@@ -838,6 +838,10 @@
     touch-action: none;
   }
 
+  body.rail-drawer-open .nav {
+    z-index: 230 !important;
+  }
+
   body.rail-drawer-open .shell,
   body.rail-drawer-open .feed,
   body.rail-drawer-open .content {
@@ -846,13 +850,15 @@
 
   .rail {
     position: fixed !important;
-    top: 48px !important;
+    top: 0 !important;
     right: 0 !important;
-    bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: 0 !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
     width: min(300px, 86vw) !important;
     max-width: 300px !important;
-    border-radius: 12px 0 0 12px !important;
-    z-index: 200 !important;
+    border-radius: 0 !important;
+    z-index: 220 !important;
     transform: translateX(105%) !important;
     opacity: 1 !important;
     transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) !important;
@@ -888,9 +894,9 @@
   .rail-backdrop {
     display: block;
     position: fixed;
-    inset: 48px 0 calc(96px + env(safe-area-inset-bottom, 0px)) 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 200;
+    z-index: 210;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.22s ease;
@@ -931,7 +937,7 @@
   }
 
   .rail.mobile-rail-drawer {
-    padding: 16px 14px 20px !important;
+    padding: calc(48px + 16px) 14px calc(20px + env(safe-area-inset-bottom, 0px)) 14px !important;
   }
 
   .rail.mobile-rail-drawer > .signup-card,
