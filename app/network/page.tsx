@@ -3,6 +3,18 @@
 import MainLayout from "../components/MainLayout";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
+import { ApiError } from "../../lib/api";
+import {
+  useClaimCommissions,
+  useDashboardData,
+  useTransactionHistory,
+  useNetworkTree,
+  useLeadershipPayouts,
+  formatTokenAmount,
+  formatVolume,
+  type TransactionEntry,
+  type NetworkTreeNode,
+} from "../../lib/rewards";
 
 type PlexusCanvas = HTMLCanvasElement & { __plexus?: boolean };
 
@@ -10,13 +22,51 @@ declare global {
   interface Window {
     drawNetworkTree?: () => void;
     drawQR?: () => void;
+    __networkTreeData?: NetworkTreeNode | null;
   }
+}
+
+const TX_TYPE_LABEL: Record<TransactionEntry["type"], string> = {
+  CommissionEarned: "Referral Commission",
+  CommissionWithdrawn: "Commission Claimed",
+  MembershipPurchased: "Membership Purchase",
+  MembershipUpgraded: "Membership Upgrade",
+};
+
+function formatTxDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function NetworkPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [profileFlipped, setProfileFlipped] = useState(false);
+  const { summary, refetchSummary } = useDashboardData();
+  const { data: txData } = useTransactionHistory(15);
+  const { data: treeData } = useNetworkTree(summary?.username);
+  const { data: leadershipPayouts } = useLeadershipPayouts();
+  const claimCommissions = useClaimCommissions();
+  const [claimBusy, setClaimBusy] = useState(false);
+  const transactions = txData?.transactions || [];
+  const hasClaimableCommissions = !!(summary?.claimableNow && summary.claimableNow > 0);
+  const claimDisabledReason = claimBusy
+    ? "Claim in progress…"
+    : !summary
+    ? "Connect your wallet to check your balance."
+    : !hasClaimableCommissions
+    ? "Nothing to claim yet — commissions appear here as your network purchases memberships."
+    : "";
+  const totalLeadershipReceived = (leadershipPayouts || [])
+    .filter((p) => p.status === "PAID")
+    .reduce((sum, p) => sum + p.amountUSDC, 0);
+  const hasLeadershipHistory = (leadershipPayouts || []).length > 0;
 
   useEffect(() => {
     const canvas = canvasRef.current as PlexusCanvas | null;
@@ -72,40 +122,49 @@ export default function NetworkPage() {
     };
   }, []);
 
+  // Feed the real downline tree to the (vanilla-JS) topology renderer whenever it
+  // changes, and redraw. Set to null while there's no username yet so the canvas
+  // shows a "loading" placeholder instead of stale/synthetic data.
+  useEffect(() => {
+    window.__networkTreeData = treeData ?? null;
+    window.drawNetworkTree?.();
+  }, [treeData]);
+
+  const referralLink =
+    typeof window !== "undefined" && summary?.username
+      ? `${window.location.origin}/?ref=${summary.username}`
+      : "Connect your wallet to get your link";
+
   const copyRef = () => {
-    navigator.clipboard.writeText("hntr.net/ref/0x71c...492");
+    if (!summary?.username) {
+      window.showToast?.({ title: "No referral link yet", sub: "Finish signing up to get your link.", link: "" });
+      return;
+    }
+    navigator.clipboard.writeText(referralLink);
+    window.showToast?.({ title: "Referral link copied", sub: referralLink, link: "" });
   };
 
-  const transactions = [
-    {
-      date: "2024-07-11 14:22:31",
-      type: "Referral Commission",
-      source: "@alphawhale",
-      amount: "+$142.50",
-      status: "Confirmed",
-    },
-    {
-      date: "2024-07-11 09:15:02",
-      type: "Pool Reward",
-      source: "BAYC Strategy Pool",
-      amount: "+$87.20",
-      status: "Confirmed",
-    },
-    {
-      date: "2024-07-10 19:48:11",
-      type: "Leadership Bonus",
-      source: "Global Pool",
-      amount: "+$234.80",
-      status: "Confirmed",
-    },
-    {
-      date: "2024-07-10 13:22:55",
-      type: "Referral Commission",
-      source: "@cryptomaster",
-      amount: "+$95.00",
-      status: "Pending",
-    },
-  ];
+  const handleClaimCommissions = async () => {
+    if (claimBusy) return;
+    setClaimBusy(true);
+    try {
+      const results = await claimCommissions(summary?.tokens || []);
+      await refetchSummary();
+      window.showToast?.({
+        title: "Commissions claimed",
+        sub: `${results.length} token${results.length > 1 ? "s" : ""} sent to your wallet.`,
+        link: "",
+      });
+    } catch (error) {
+      window.showToast?.({
+        title: "Claim failed",
+        sub: error instanceof ApiError ? error.message : (error as Error)?.message || "Please try again.",
+        link: "",
+      });
+    } finally {
+      setClaimBusy(false);
+    }
+  };
 
   return (
     <MainLayout>
@@ -154,9 +213,9 @@ export default function NetworkPage() {
                       </svg>
                     </div>
                     <div className="net-profile-info">
-                      <div className="net-username">masteraccount</div>
+                      <div className="net-username">{summary?.username || "Unregistered"}</div>
                       <div className="net-rank">
-                        Rank: <span>Elite Hunter</span>
+                        Rank: <span>{summary?.rank || "None"}</span>
                       </div>
                     </div>
                   </div>
@@ -164,14 +223,14 @@ export default function NetworkPage() {
                   <div className="net-progress-wrap">
                     <div className="net-prog-row">
                       <span className="net-prog-lbl">Current Progress</span>
-                      <span className="net-prog-pct">74%</span>
+                      <span className="net-prog-pct">{summary?.progress.percent ?? 0}%</span>
                     </div>
                     <div className="net-prog-bar">
-                      <div className="net-prog-fill" style={{ width: "74%" }}></div>
+                      <div className="net-prog-fill" style={{ width: `${summary?.progress.percent ?? 0}%` }}></div>
                     </div>
                     <div className="net-prog-labels">
-                      <span>Hunter Elite</span>
-                      <span style={{ fontWeight: 600, color: "var(--t4)" }}>Hunter Legend</span>
+                      <span>{summary?.progress.currentRank || "None"}</span>
+                      <span style={{ fontWeight: 600, color: "var(--t4)" }}>{summary?.progress.nextRank || "Max Rank"}</span>
                     </div>
                   </div>
                 </div>
@@ -190,101 +249,55 @@ export default function NetworkPage() {
                       </svg>
                     </div>
                     <div>
-                      <div className="net-perf-user">masteraccount</div>
+                      <div className="net-perf-user">{summary?.username || "Unregistered"}</div>
                       <div className="net-rank">
-                        Rank: <span>Elite Hunter</span>
+                        Rank: <span>{summary?.rank || "None"}</span>
                       </div>
                     </div>
                     <div className="net-perf-rule">
-                      RULE <b>40</b> / <b>40</b> / <b>40</b>
+                      TEAM VOLUME <b>{(summary?.teamVolume ?? 0).toLocaleString()}</b>
                     </div>
                   </div>
                   <div className="net-divider"></div>
                   <div className="net-perf-grid">
-                    <div className="net-perf-col">
-                      <div className="net-perf-name">COMPETITIVE</div>
-                      <div className="net-perf-valrow">
-                        <div className="net-perf-val">
-                          10K<b>/10K</b>
+                    {[
+                      { name: "COMPETITIVE", leg: summary?.legs.competitive[0] },
+                      { name: "COMPETITIVE", leg: summary?.legs.competitive[1] },
+                      { name: "WEAKEST", leg: summary?.legs.weakest, muted: true },
+                    ].map((col, i) => {
+                      const pct = col.leg?.percent ?? 0;
+                      return (
+                        <div className="net-perf-col" key={i}>
+                          <div className="net-perf-name">{col.name}</div>
+                          <div className="net-perf-valrow">
+                            <div className="net-perf-val">
+                              {formatVolume(col.leg?.volume ?? 0)}
+                              <b>/{formatVolume(col.leg?.cap ?? 0)}</b>
+                            </div>
+                            <div className="net-perf-pct">
+                              <span className={`net-perf-badge${col.muted ? " muted" : ""}`}>
+                                <svg viewBox="0 0 12 12" fill="none">
+                                  <path
+                                    d="M2.5 6.2l2.3 2.3L9.5 3.5"
+                                    stroke="#fff"
+                                    strokeWidth="1.9"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  ></path>
+                                </svg>
+                              </span>
+                              {pct}%
+                            </div>
+                          </div>
+                          <div className="net-perf-bar">
+                            <div className="net-perf-fill" style={{ "--w": `${pct}%` } as React.CSSProperties}></div>
+                          </div>
+                          <div className="net-perf-team">
+                            Referring Team<b>{col.leg?.label || "—"}</b>
+                          </div>
                         </div>
-                        <div className="net-perf-pct">
-                          <span className="net-perf-badge">
-                            <svg viewBox="0 0 12 12" fill="none">
-                              <path
-                                d="M2.5 6.2l2.3 2.3L9.5 3.5"
-                                stroke="#fff"
-                                strokeWidth="1.9"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              ></path>
-                            </svg>
-                          </span>
-                          100%
-                        </div>
-                      </div>
-                      <div className="net-perf-bar">
-                        <div className="net-perf-fill" style={{ "--w": "100%" } as React.CSSProperties}></div>
-                      </div>
-                      <div className="net-perf-team">
-                        Referring Team<b>Vanguard</b>
-                      </div>
-                    </div>
-                    <div className="net-perf-col">
-                      <div className="net-perf-name">COMPETITVE</div>
-                      <div className="net-perf-valrow">
-                        <div className="net-perf-val">
-                          10K<b>/10K</b>
-                        </div>
-                        <div className="net-perf-pct">
-                          <span className="net-perf-badge">
-                            <svg viewBox="0 0 12 12" fill="none">
-                              <path
-                                d="M2.5 6.2l2.3 2.3L9.5 3.5"
-                                stroke="#fff"
-                                strokeWidth="1.9"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              ></path>
-                            </svg>
-                          </span>
-                          100%
-                        </div>
-                      </div>
-                      <div className="net-perf-bar">
-                        <div className="net-perf-fill" style={{ "--w": "100%" } as React.CSSProperties}></div>
-                      </div>
-                      <div className="net-perf-team">
-                        Referring Team<b>Frontier</b>
-                      </div>
-                    </div>
-                    <div className="net-perf-col">
-                      <div className="net-perf-name">WEAKEST</div>
-                      <div className="net-perf-valrow">
-                        <div className="net-perf-val">
-                          1.1K<b>/4K</b>
-                        </div>
-                        <div className="net-perf-pct">
-                          <span className="net-perf-badge muted">
-                            <svg viewBox="0 0 12 12" fill="none">
-                              <path
-                                d="M2.5 6.2l2.3 2.3L9.5 3.5"
-                                stroke="#fff"
-                                strokeWidth="1.9"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              ></path>
-                            </svg>
-                          </span>
-                          33%
-                        </div>
-                      </div>
-                      <div className="net-perf-bar">
-                        <div className="net-perf-fill" style={{ "--w": "33%" } as React.CSSProperties}></div>
-                      </div>
-                      <div className="net-perf-team">
-                        Referring Team<b>Outpost</b>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -293,17 +306,26 @@ export default function NetworkPage() {
             <div className="net-stats-grid">
               <div className="net-stat">
                 <div className="net-stat-lbl">Total Rewarded</div>
-                <div className="net-stat-val">$11,955.14</div>
-                <div className="net-stat-chg pos">↗ +4.2% This Month</div>
+                <div className="net-stat-val">
+                  ${(summary?.totalRewarded ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="net-stat-chg pos">
+                  ${(summary?.claimableNow ?? 0).toFixed(2)} claimable now
+                </div>
               </div>
               <div className="net-stat">
-                <div className="net-stat-lbl">HNTR Points</div>
-                <div className="net-stat-val">6,913,586</div>
+                <div className="net-stat-lbl" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  HNTR Points
+                  <span className="info-i" data-tip="HNTR POINTS COMING SOON">
+                    i
+                  </span>
+                </div>
+                <div className="net-stat-val">0</div>
               </div>
               <div className="net-stat" style={{ position: "relative" }}>
                 <div className="net-stat-lbl">Membership</div>
                 <div className="net-stat-val" style={{ fontSize: "22px", fontFamily: "var(--fd)" }}>
-                  RANGER
+                  {(summary?.tier || "NONE").toUpperCase()}
                 </div>
                 <button
                   className="upgrade-btn"
@@ -315,8 +337,7 @@ export default function NetworkPage() {
               </div>
               <div className="net-stat">
                 <div className="net-stat-lbl">Total Network Users</div>
-                <div className="net-stat-val">12,482</div>
-                <div className="net-stat-chg pos">↗ +1.8% Growth</div>
+                <div className="net-stat-val">{(summary?.networkSize ?? 0).toLocaleString()}</div>
               </div>
             </div>
           </div>
@@ -344,9 +365,11 @@ export default function NetworkPage() {
                 ),
                 tag: "REAL-TIME",
                 name: "Referral Commissions",
-                desc: "Cumulative earnings from direct network institutional volume.",
-                amount: "$4,230.12",
+                desc: "Claimable now from your direct and indirect network volume.",
+                amount: `$${(summary?.claimableNow ?? 0).toFixed(2)}`,
                 delay: ".05s",
+                claimable: true,
+                note: "CLAIM",
               },
               {
                 icon: (
@@ -367,11 +390,13 @@ export default function NetworkPage() {
                     ></path>
                   </>
                 ),
-                tag: "DAILY",
+                tag: hasLeadershipHistory ? "AUTO-DEPOSITED" : "MONTHLY",
                 name: "Leadership Bonus",
-                desc: "Daily proportional distribution from global liquidity pools.",
-                amount: "$1,844.80",
+                desc: "Automatically deposited to your wallet on the 1st of each month, based on your leadership rank's share of the pool.",
+                amount: `$${totalLeadershipReceived.toFixed(2)}`,
                 delay: ".10s",
+                claimable: false,
+                note: hasLeadershipHistory ? "PAID" : "SOON",
               },
               {
                 icon: (
@@ -381,11 +406,13 @@ export default function NetworkPage() {
                     <rect x="13.6" y="3" width="3.4" height="14" rx="1" stroke="currentColor" strokeWidth="1.5"></rect>
                   </>
                 ),
-                tag: "ONE-TIME",
+                tag: "COMING SOON",
                 name: "Rank Bonus",
                 desc: "Bonus calculated based on organization performance metrics.",
-                amount: "$31,005.00",
+                amount: "$0.00",
                 delay: ".15s",
+                claimable: false,
+                note: "SOON",
               },
               {
                 icon: (
@@ -411,11 +438,13 @@ export default function NetworkPage() {
                     ></path>
                   </>
                 ),
-                tag: "EVENT",
+                tag: "COMING SOON",
                 name: "NFT Strategy Rewards",
                 desc: "One-time milestone incentives for achieving new Hunter tiers.",
-                amount: "$25,000.00",
+                amount: "$0.00",
                 delay: ".20s",
+                claimable: false,
+                note: "SOON",
               },
               {
                 icon: (
@@ -424,11 +453,13 @@ export default function NetworkPage() {
                     <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5"></circle>
                   </>
                 ),
-                tag: "MONTHLY",
+                tag: "COMING SOON",
                 name: "OTC Desk",
                 desc: "Recurring monthly stipend for active Hunter Elite status holders.",
-                amount: "$2,500.00",
+                amount: "$0.00",
                 delay: ".25s",
+                claimable: false,
+                note: "SOON",
               },
               {
                 icon: (
@@ -443,11 +474,13 @@ export default function NetworkPage() {
                     ></path>
                   </>
                 ),
-                tag: "SPECIAL",
+                tag: "COMING SOON",
                 name: "Liquidity Provider",
                 desc: "Variable rewards for beta testing and governance participation.",
-                amount: "$302.52",
+                amount: "$0.00",
                 delay: ".30s",
+                claimable: false,
+                note: "SOON",
               },
             ].map((reward, i) => (
               <div className="net-reward-card" style={{ "--delay": reward.delay } as React.CSSProperties} key={i}>
@@ -463,7 +496,14 @@ export default function NetworkPage() {
                 <div className="net-rc-desc">{reward.desc}</div>
                 <div className="net-rc-footer">
                   <div className="net-rc-amount">{reward.amount}</div>
-                  <button className="net-claim-btn">CLAIM</button>
+                  <button
+                    className="net-claim-btn"
+                    disabled={!reward.claimable || claimBusy || !hasClaimableCommissions}
+                    onClick={reward.claimable ? handleClaimCommissions : undefined}
+                    title={reward.claimable ? claimDisabledReason || "Claim your commissions now" : reward.desc}
+                  >
+                    {reward.claimable ? (claimBusy ? "CLAIMING…" : "CLAIM") : reward.note}
+                  </button>
                 </div>
               </div>
             ))}
@@ -494,7 +534,9 @@ export default function NetworkPage() {
             <div className="ref-card">
               <div className="ref-title">Referral Link</div>
               <div className="ref-link-row">
-                <div className="ref-link-box">hntr.net/ref/0x71c...492</div>
+                <div className="ref-link-box" title={referralLink}>
+                  {referralLink}
+                </div>
                 <button className="ref-copy-btn" onClick={copyRef}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                     <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"></rect>
@@ -549,25 +591,42 @@ export default function NetworkPage() {
                   </tr>
                 </thead>
                 <tbody id="txhTable">
-                  {transactions.map((tx, i) => (
-                    <tr key={i}>
-                      <td>{tx.date}</td>
-                      <td>{tx.type}</td>
-                      <td>{tx.source}</td>
-                      <td style={{ textAlign: "right", color: "var(--green)", fontWeight: 600 }}>{tx.amount}</td>
-                      <td style={{ textAlign: "center" }}>
-                        <span className={`txh-status ${tx.status === "Confirmed" ? "confirmed" : "pending"}`}>
-                          {tx.status}
-                        </span>
+                  {transactions.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: "center", color: "var(--t2)", padding: "24px 0" }}>
+                        No on-chain activity yet.
                       </td>
                     </tr>
-                  ))}
+                  )}
+                  {transactions.map((tx, i) => {
+                    const isOutgoing = tx.type === "MembershipPurchased" || tx.type === "MembershipUpgraded";
+                    return (
+                      <tr key={`${tx.txHash}-${i}`}>
+                        <td>{formatTxDate(tx.timestamp)}</td>
+                        <td>{TX_TYPE_LABEL[tx.type] || tx.type}</td>
+                        <td>{tx.tier ? `${tx.tier} tier` : tx.level ? `Level ${tx.level}` : "—"}</td>
+                        <td
+                          style={{
+                            textAlign: "right",
+                            color: isOutgoing ? "var(--t2)" : "var(--green)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isOutgoing ? "-" : "+"}
+                          {formatTokenAmount(tx.amount)}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span className="txh-status confirmed">Confirmed</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <div className="txh-footer">
               <div className="txh-count" id="txhCount">
-                Showing 1-4 of 1,244 entries
+                Showing {transactions.length} of {transactions.length} recent entries
               </div>
               <div className="txh-pages">
                 <button className="txh-pg">‹</button>

@@ -3,6 +3,8 @@
 import { useRouter } from "nextjs-toploader/app";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDashboardData } from "../../lib/rewards";
+import { TIERS } from "../../lib/contracts";
 
 const DM_BALANCE = 4.25;
 const DM_ETH_USD = 1820;
@@ -20,6 +22,8 @@ function setModalBodyLock(locked: boolean) {
 
 export default function DepositModal({ open, assetName, floorEth, onClose }: DepositModalProps) {
   const router = useRouter();
+  const { summary } = useDashboardData();
+  const currentTier = TIERS.find((t) => t.name === summary?.tier);
   const [amount, setAmount] = useState("");
   const [activePct, setActivePct] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -157,11 +161,14 @@ export default function DepositModal({ open, assetName, floorEth, onClose }: Dep
             <div className="dm-mem-rows">
               <div className="dm-mem-row">
                 <span className="dm-mem-lbl">Membership:</span>
-                <span className="dm-mem-val">RANGER ($750)</span>
+                <span className="dm-mem-val">
+                  {(summary?.tier || "None").toUpperCase()}
+                  {currentTier ? ` ($${currentTier.priceUsd})` : ""}
+                </span>
               </div>
               <div className="dm-mem-row">
                 <span className="dm-mem-lbl">Max Deposit:</span>
-                <span className="dm-mem-val">$1,500 / $7,500</span>
+                <span className="dm-mem-val">{currentTier?.maxDeposit || "—"}</span>
               </div>
             </div>
             <button

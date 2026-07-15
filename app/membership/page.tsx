@@ -1,11 +1,18 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAccount } from "wagmi";
+import { api, ApiError } from "../../lib/api";
+import { ensureAuth } from "../../lib/auth";
+import { purchaseOrUpgradeTier, showMembershipSuccessModal, MembershipFlowError } from "../../lib/membership";
+import { useConnectWallet } from "../../lib/useConnectWallet";
 
 declare global {
   interface Window {
     __resources?: Record<string, string>;
+    openSignup?: () => void;
+    showToast?: (data: { title: string; sub: string; link: string }) => void;
   }
 }
 
@@ -13,6 +20,9 @@ type MosaicCanvas = HTMLCanvasElement & { __mosaic?: boolean };
 
 export default function MembershipPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { address, isConnected } = useAccount();
+  const { connectWallet } = useConnectWallet();
+  const [pendingTier, setPendingTier] = useState<string | null>(null);
 
   useEffect(() => {
     window.__resources = {
@@ -40,8 +50,43 @@ export default function MembershipPage() {
     };
   }, []);
 
-  const selectTier = (button: HTMLButtonElement) => {
-    console.log("Tier selected:", button);
+  const selectTier = async (tierName: string) => {
+    if (pendingTier) return;
+    setPendingTier(tierName);
+    try {
+      let account = address;
+      if (!isConnected || !account) {
+        account = await connectWallet();
+      }
+      if (!account) throw new Error("No wallet account available.");
+
+      await ensureAuth();
+
+      const result = await purchaseOrUpgradeTier(tierName);
+
+      let username = "";
+      try {
+        const profile = await api.get<{ profile: { username: string } }>(`/api/users/wallet/${account}`);
+        username = profile.profile.username;
+      } catch {
+        // referral link falls back to the tier name if we can't resolve a username
+      }
+
+      showMembershipSuccessModal(result, username);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "USER_NOT_REGISTERED") {
+        window.showToast?.({ title: "Complete sign up first", sub: "Finish registration, then pick a tier.", link: "" });
+        window.openSignup?.();
+      } else {
+        const message =
+          error instanceof ApiError || error instanceof MembershipFlowError || error instanceof Error
+            ? error.message
+            : "Please try again.";
+        window.showToast?.({ title: "Purchase failed", sub: message, link: "" });
+      }
+    } finally {
+      setPendingTier(null);
+    }
   };
 
   return (
@@ -94,8 +139,8 @@ export default function MembershipPage() {
                   <span className="tier-feature-text">$400 Max Deposit</span>
                 </div>
               </div>
-              <button className="tier-btn" onClick={(e) => selectTier(e.currentTarget)}>
-                SELECT
+              <button className="tier-btn" onClick={() => selectTier("Scout")} disabled={!!pendingTier}>
+                {pendingTier === "Scout" ? "PROCESSING..." : "SELECT"}
               </button>
             </div>
 
@@ -130,8 +175,8 @@ export default function MembershipPage() {
                   <span className="tier-feature-text">$1,500 Max Deposit</span>
                 </div>
               </div>
-              <button className="tier-btn" onClick={(e) => selectTier(e.currentTarget)}>
-                SELECT
+              <button className="tier-btn" onClick={() => selectTier("Tracker")} disabled={!!pendingTier}>
+                {pendingTier === "Tracker" ? "PROCESSING..." : "SELECT"}
               </button>
             </div>
 
@@ -167,8 +212,8 @@ export default function MembershipPage() {
                   <span className="tier-feature-text">$4,000 Max Deposit</span>
                 </div>
               </div>
-              <button className="tier-btn purchase" onClick={(e) => selectTier(e.currentTarget)}>
-                PURCHASE
+              <button className="tier-btn purchase" onClick={() => selectTier("Ranger")} disabled={!!pendingTier}>
+                {pendingTier === "Ranger" ? "PROCESSING..." : "PURCHASE"}
               </button>
             </div>
 
@@ -203,8 +248,8 @@ export default function MembershipPage() {
                   <span className="tier-feature-text">$8,000 Max Deposit</span>
                 </div>
               </div>
-              <button className="tier-btn" onClick={(e) => selectTier(e.currentTarget)}>
-                SELECT
+              <button className="tier-btn" onClick={() => selectTier("Hunter")} disabled={!!pendingTier}>
+                {pendingTier === "Hunter" ? "PROCESSING..." : "SELECT"}
               </button>
             </div>
 
@@ -246,8 +291,8 @@ export default function MembershipPage() {
                   <span className="tier-feature-text">OTC Desk & NFT Lending</span>
                 </div>
               </div>
-              <button className="tier-btn" onClick={(e) => selectTier(e.currentTarget)}>
-                SELECT
+              <button className="tier-btn" onClick={() => selectTier("Apex")} disabled={!!pendingTier}>
+                {pendingTier === "Apex" ? "PROCESSING..." : "SELECT"}
               </button>
             </div>
           </div>

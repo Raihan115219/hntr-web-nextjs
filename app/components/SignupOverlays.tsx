@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAccount } from "wagmi";
+import { api, ApiError } from "../../lib/api";
+import { ensureAuth } from "../../lib/auth";
+import { purchaseOrUpgradeTier, showMembershipSuccessModal, MembershipFlowError } from "../../lib/membership";
+import { useConnectWallet } from "../../lib/useConnectWallet";
 
 function setModalBodyLock(locked: boolean) {
   document.body.classList.toggle("modal-open", locked);
@@ -16,6 +21,11 @@ function closeMembershipFlow() {
   setModalBodyLock(false);
 }
 
+function notifyError(title: string, error: unknown) {
+  const sub = error instanceof ApiError || error instanceof MembershipFlowError || error instanceof Error ? error.message : "Please try again.";
+  window.showToast?.({ title, sub, link: "" });
+}
+
 declare global {
   interface Window {
     openSignup?: () => void;
@@ -25,12 +35,38 @@ declare global {
     startSignupFx?: (canvas: HTMLCanvasElement | null) => void;
     initSuTiers?: () => void;
     suGoto?: (n: number) => void;
-    suSelectTier?: (name: string) => void;
+    suSelectTier?: (name: string) => void | Promise<void>;
     msCopyRef?: (btn: HTMLButtonElement) => void;
   }
 }
 
 export default function SignupOverlays() {
+  const { address, isConnected } = useAccount();
+  const { connectWallet } = useConnectWallet();
+
+  const [sponsorUsername, setSponsorUsername] = useState("");
+  const [sponsorLocked, setSponsorLocked] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState("");
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [registerBusy, setRegisterBusy] = useState(false);
+
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref) {
+        setSponsorUsername(ref);
+        setSponsorLocked(true);
+      }
+    } catch {
+      // no-op: referral prefill is a convenience, not required
+    }
+  }, []);
+
   useEffect(() => {
     const scriptId = "signup-flow-script";
     document.getElementById(scriptId)?.remove();
@@ -50,6 +86,17 @@ export default function SignupOverlays() {
           }
         };
       }
+
+      // Replace the fake "instant success" tier handler with the real purchase flow.
+      window.suSelectTier = async (tierName: string) => {
+        try {
+          window.showToast?.({ title: "Processing purchase...", sub: `${tierName} membership - confirm in your wallet`, link: "" });
+          const result = await purchaseOrUpgradeTier(tierName);
+          showMembershipSuccessModal(result, currentUsername || usernameRef.current?.value || "");
+        } catch (error) {
+          notifyError("Purchase failed", error);
+        }
+      };
     };
     document.body.appendChild(script);
 
@@ -62,7 +109,83 @@ export default function SignupOverlays() {
       script.remove();
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+    // currentUsername is read inside the closure via a stable pattern - re-registering
+    // the handler on change keeps it accurate without needing a ref indirection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUsername]);
+
+  const handleConnectWallet = async () => {
+    if (connectBusy) return;
+    setConnectBusy(true);
+    try {
+      let account = address;
+      if (!isConnected || !account) {
+        account = await connectWallet();
+      }
+      if (!account) throw new Error("No wallet account available.");
+
+      await ensureAuth();
+
+      try {
+        const profile = await api.get<{ profile: { username: string; tier: string } }>(`/api/users/wallet/${account}`);
+        setCurrentUsername(profile.profile.username);
+        if (profile.profile.tier && profile.profile.tier !== "None") {
+          window.showToast?.({
+            title: "Already a member",
+            sub: `Signed in as @${profile.profile.username} (${profile.profile.tier})`,
+            link: "",
+          });
+          closeSignupFlow();
+          return;
+        }
+        // Registered but hasn't purchased a tier yet - skip straight to tier selection.
+        window.suGoto?.(3);
+      } catch (error) {
+        if (error instanceof ApiError && error.statusCode === 404) {
+          window.suGoto?.(2);
+        } else {
+          throw error;
+        }
+      }
+    } catch (error) {
+      notifyError("Connection failed", error);
+    } finally {
+      setConnectBusy(false);
+    }
+  };
+
+  const handleContinueRegistration = async () => {
+    if (registerBusy) return;
+    const username = usernameRef.current?.value.trim();
+    const email = emailRef.current?.value.trim();
+    const phone = phoneRef.current?.value.trim();
+
+    if (!username) {
+      window.showToast?.({ title: "Username required", sub: "Enter a username or referral ID to continue.", link: "" });
+      return;
+    }
+    if (!address) {
+      notifyError("Registration failed", new Error("Wallet not connected."));
+      return;
+    }
+
+    setRegisterBusy(true);
+    try {
+      await api.post("/api/users/register", {
+        username,
+        walletAddress: address,
+        email,
+        phone,
+        sponsorUsername: sponsorUsername || undefined,
+      });
+      setCurrentUsername(username);
+      window.suGoto?.(3);
+    } catch (error) {
+      notifyError("Registration failed", error);
+    } finally {
+      setRegisterBusy(false);
+    }
+  };
 
   return (
     <>
@@ -101,11 +224,11 @@ export default function SignupOverlays() {
               <div className="su1-sub">
                 Access requires a verified cryptographic signature. Connect your wallet to continue.
               </div>
-              <button className="su-primary" type="button" onClick={() => window.suGoto?.(2)}>
+              <button className="su-primary" type="button" onClick={handleConnectWallet} disabled={connectBusy}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M9 1L2 9h5l-1 6 7-8H8l1-6z" fill="currentColor" />
                 </svg>
-                Connect Wallet
+                {connectBusy ? "Connecting..." : "Connect Wallet"}
               </button>
             </div>
             <div className="su-foot">
@@ -141,11 +264,17 @@ export default function SignupOverlays() {
               <div className="su2-sub">Complete your profile to access the terminal.</div>
               <div className="su-field">
                 <label className="su-lbl">Sponsor</label>
-                <input className="su-input" defaultValue="@username" disabled />
+                <input
+                  className="su-input"
+                  value={sponsorLocked ? `@${sponsorUsername}` : sponsorUsername}
+                  placeholder="@sponsor_username (optional)"
+                  disabled={sponsorLocked}
+                  onChange={(e) => setSponsorUsername(e.target.value.replace(/^@/, ""))}
+                />
               </div>
               <div className="su-field">
                 <label className="su-lbl">Username / Referral ID</label>
-                <input className="su-input" id="suUsername" placeholder="e.g. ALPHA" />
+                <input className="su-input" id="suUsername" ref={usernameRef} placeholder="e.g. ALPHA" />
               </div>
               <div className="su-field">
                 <label className="su-lbl">Full Name</label>
@@ -166,15 +295,15 @@ export default function SignupOverlays() {
                 </div>
                 <div>
                   <label className="su-lbl">Phone Number</label>
-                  <input className="su-input" placeholder="+00 0000 0000" />
+                  <input className="su-input" ref={phoneRef} placeholder="+00 0000 0000" />
                 </div>
               </div>
               <div className="su-field">
                 <label className="su-lbl">Email Address</label>
-                <input className="su-input" type="email" placeholder="institutional@gmail.com" />
+                <input className="su-input" type="email" ref={emailRef} placeholder="institutional@gmail.com" />
               </div>
-              <button className="su-primary" type="button" onClick={() => window.suGoto?.(3)}>
-                Continue&nbsp;&nbsp;→
+              <button className="su-primary" type="button" onClick={handleContinueRegistration} disabled={registerBusy}>
+                {registerBusy ? "Registering..." : <>Continue&nbsp;&nbsp;→</>}
               </button>
             </div>
             <div className="su-foot">

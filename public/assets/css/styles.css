@@ -937,6 +937,10 @@ body.dark .upgrade-btn:hover{background:#fff}
 .net-rc-amount{font-family:var(--fm);font-size:14px;font-weight:700;color:var(--t4)}
 .net-claim-btn{height:32px;padding:0 16px;background:var(--olive);color:var(--cream);border:none;border-radius:5px;font-family:var(--fm);font-size:9px;font-weight:700;letter-spacing:.1em;cursor:pointer;box-shadow:var(--sh1);transition:background .15s}
 .net-claim-btn:hover{background:var(--olive-dark)}
+/* Disabled buttons previously looked 100% identical to active ones (no opacity/cursor
+   change), so a $0-balance "nothing to claim yet" state read as a broken button. */
+.net-claim-btn:disabled,.cbtn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.net-claim-btn:disabled:hover,.cbtn:disabled:hover{background:var(--olive)}
 
 /* ── TOPOLOGY ── */
 .topo-outer{display:grid;grid-template-columns:1fr 240px;gap:12px;margin-top:20px;margin-bottom:14px}

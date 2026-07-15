@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ThemeTopLoader from "./components/ThemeTopLoader";
+import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: "HNTR Next",
@@ -25,7 +26,7 @@ export default function RootLayout({
         }}
       >
         <ThemeTopLoader />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

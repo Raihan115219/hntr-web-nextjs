@@ -4,10 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useAccount, useBalance, useDisconnect } from "wagmi";
+import { formatEther } from "viem";
 import SignupOverlays from "./SignupOverlays";
 import SignupCard from "./SignupCard";
 import NotificationSystem from "./NotificationSystem";
 import DepositModal from "./DepositModal";
+import { ApiError, clearStoredAuth } from "../../lib/api";
+import { useDashboardData, useClaimCommissions } from "../../lib/rewards";
 import type { StandardToastData } from "../../lib/notification-data";
 
 const MOBILE_MQ = "(max-width: 900px)";
@@ -45,7 +49,10 @@ declare global {
   }
 }
 
-const WALLET_ADDRESS = "0x71C...492";
+function shortenAddress(address?: string) {
+  if (!address) return "";
+  return `${address.slice(0, 6)}...${address.slice(-3)}`;
+}
 
 const PRIVACY_EYE_ON = (
   <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
@@ -87,11 +94,17 @@ export default function MainLayout({
   railOpacity = 1 
 }: MainLayoutProps) {
   const pathname = usePathname();
+  const { address, isConnected: walletConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { data: balanceData } = useBalance({ address, query: { enabled: !!address } });
+  const WALLET_ADDRESS = shortenAddress(address);
+  const { summary, refetchSummary } = useDashboardData();
+  const claimCommissions = useClaimCommissions();
+  const [claimBusy, setClaimBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [isDark, setIsDark] = useState(true);
   const [walletPanelOpen, setWalletPanelOpen] = useState(false);
   const [notifPanelOpen, setNotifPanelOpen] = useState(false);
-  const [walletConnected, setWalletConnected] = useState(true);
   const [depositOpen, setDepositOpen] = useState(false);
   const [depositAssetName, setDepositAssetName] = useState("Pool Asset");
   const [depositFloorEth, setDepositFloorEth] = useState("0.00");
@@ -352,11 +365,13 @@ export default function MainLayout({
 
   const disconnectWallet = () => {
     setWalletPanelOpen(false);
-    setWalletConnected(false);
+    const disconnectedLabel = WALLET_ADDRESS;
+    clearStoredAuth();
+    disconnect();
     window.showToast?.({
       title: "Wallet disconnected",
-      sub: `${WALLET_ADDRESS} has been disconnected`,
-      link: "RECONNECT",
+      sub: `${disconnectedLabel} has been disconnected`,
+      link: "",
     });
   };
 
@@ -378,14 +393,10 @@ export default function MainLayout({
     });
   };
 
-  const reconnectWallet = useCallback(() => {
-    setWalletConnected(true);
-    window.showToast?.({
-      title: "Wallet connected",
-      sub: `${WALLET_ADDRESS} reconnected successfully`,
-      link: "VIEW WALLET",
-    });
-  }, []);
+  // Legacy script-8.js calls window.reconnectWallet() after closing the membership
+  // success modal. With a real wallet connection the wallet was never disconnected
+  // during purchase, so this is now a no-op kept only for backward compatibility.
+  const reconnectWallet = useCallback(() => {}, []);
 
   useEffect(() => {
     window.reconnectWallet = reconnectWallet;
@@ -393,6 +404,28 @@ export default function MainLayout({
       delete window.reconnectWallet;
     };
   }, [reconnectWallet]);
+
+  const handleClaimCommissions = async () => {
+    if (claimBusy) return;
+    setClaimBusy(true);
+    try {
+      const results = await claimCommissions(summary?.tokens || []);
+      await refetchSummary();
+      window.showToast?.({
+        title: "Commissions claimed",
+        sub: `${results.length} token${results.length > 1 ? "s" : ""} sent to your wallet.`,
+        link: "",
+      });
+    } catch (error) {
+      window.showToast?.({
+        title: "Claim failed",
+        sub: error instanceof ApiError ? error.message : (error as Error)?.message || "Please try again.",
+        link: "",
+      });
+    } finally {
+      setClaimBusy(false);
+    }
+  };
 
   const lockedNavClick = (e: React.MouseEvent) => {
     if (!walletConnected) {
@@ -412,41 +445,45 @@ export default function MainLayout({
     }
   };
 
-  const renderProfileCard = () => (
-    <div className="r-div rail-profile-block">
-      <div className="rp">
-        <div className="rav">👤</div>
-        <div>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <div className="rn">masteraccount</div>
+  const renderProfileCard = () => {
+    const progress = summary?.progress;
+    const progressPct = progress?.percent ?? 0;
+    return (
+      <div className="r-div rail-profile-block">
+        <div className="rp">
+          <div className="rav">👤</div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <div className="rn">{summary?.username || "Unregistered"}</div>
+            </div>
+            <div className="rt">{summary?.rank || "None"}</div>
           </div>
-          <div className="rt">Elite Hunter</div>
+          <button
+            className={`privacy-eye${balancesHidden ? " off" : ""}`}
+            type="button"
+            onClick={togglePrivacy}
+            aria-label={balancesHidden ? "Show balances" : "Hide balances"}
+            title={balancesHidden ? "Show balances" : "Hide balances"}
+          >
+            {balancesHidden ? PRIVACY_EYE_OFF : PRIVACY_EYE_ON}
+          </button>
         </div>
-        <button
-          className={`privacy-eye${balancesHidden ? " off" : ""}`}
-          type="button"
-          onClick={togglePrivacy}
-          aria-label={balancesHidden ? "Show balances" : "Hide balances"}
-          title={balancesHidden ? "Show balances" : "Hide balances"}
-        >
-          {balancesHidden ? PRIVACY_EYE_OFF : PRIVACY_EYE_ON}
-        </button>
+        <div className="rpb-wrap">
+          <div className="rph">
+            <div className="rpl">Current Progress</div>
+            <div className="rpp">{progressPct}%</div>
+          </div>
+          <div className="rpb">
+            <div className="rpf" style={{ width: `${progressPct}%` }} />
+          </div>
+          <div className="rpls">
+            <span>{progress?.currentRank || "None"}</span>
+            <span>{progress?.nextRank || "Max Rank"}</span>
+          </div>
+        </div>
       </div>
-      <div className="rpb-wrap">
-        <div className="rph">
-          <div className="rpl">Current Progress</div>
-          <div className="rpp">74%</div>
-        </div>
-        <div className="rpb">
-          <div className="rpf" style={{ width: "74%" }} />
-        </div>
-        <div className="rpls">
-          <span>Hunter Elite</span>
-          <span>Hunter Legend</span>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderRightRail = () => (
     <div
@@ -472,8 +509,10 @@ export default function MainLayout({
             <div className="rs2">
               <div className="rsb">
                 <div className="rsbl">Total Rewarded</div>
-                <div className="rsbv">{maskBalance("$11,955.14")}</div>
-                <div className="rsbc">↑+4.2% This Month</div>
+                <div className="rsbv">
+                  {maskBalance(`$${(summary?.totalRewarded ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+                </div>
+                <div className="rsbc">{summary?.networkSize ?? 0} network members</div>
               </div>
               <div className="rsb">
                 <div className="rsbl" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -482,7 +521,7 @@ export default function MainLayout({
                     i
                   </span>
                 </div>
-                <div className="rsbv">{maskBalance("6,913,586")}</div>
+                <div className="rsbv">{maskBalance("0")}</div>
                 <div className="rsbg">— Lifetime</div>
               </div>
             </div>
@@ -505,10 +544,23 @@ export default function MainLayout({
                 <div className="rrctype">Referral Commission</div>
               </div>
             </div>
-            <div className="rrcd">Instant earnings from direct referral volume</div>
+            <div className="rrcd">Claimable now from your direct referral network</div>
             <div className="rrcb">
-              <div className="rrcv">{maskBalance("$4,230.11")}</div>
-              <button className="cbtn">CLAIM</button>
+              <div className="rrcv">{maskBalance(`$${(summary?.claimableNow ?? 0).toFixed(2)}`)}</div>
+              <button
+                className="cbtn"
+                disabled={claimBusy || !(summary?.claimableNow && summary.claimableNow > 0)}
+                onClick={handleClaimCommissions}
+                title={
+                  claimBusy
+                    ? "Claim in progress…"
+                    : summary?.claimableNow && summary.claimableNow > 0
+                    ? "Claim your commissions now"
+                    : "Nothing to claim yet — commissions appear here as your network purchases memberships."
+                }
+              >
+                {claimBusy ? "CLAIMING…" : "CLAIM"}
+              </button>
             </div>
           </div>
           <div className="rrc r-div">
@@ -518,13 +570,15 @@ export default function MainLayout({
                   <rect x="1.5" y="4" width="9" height="7" rx="1" stroke="#8a9e82" strokeWidth="1.2" />
                   <path d="M4 4V3a2 2 0 0 1 4 0v1" stroke="#8a9e82" strokeWidth="1.2" strokeLinecap="round" />
                 </svg>
-                <div className="rrctype">Pool Rewards</div>
+                <div className="rrctype">Locked Commission</div>
               </div>
             </div>
-            <div className="rrcd">Proportional distribution from NFT strategy pools</div>
+            <div className="rrcd">Vested balance released as your team volume grows</div>
             <div className="rrcb">
-              <div className="rrcv">{maskBalance("$1,844.28")}</div>
-              <button className="cbtn">CLAIM</button>
+              <div className="rrcv">{maskBalance(`$${(summary?.lockedRemaining ?? 0).toFixed(2)}`)}</div>
+              <button className="cbtn" disabled title="Locked commissions unlock automatically on-chain">
+                LOCKED
+              </button>
             </div>
           </div>
         </>
@@ -770,9 +824,10 @@ export default function MainLayout({
         <div className="wallet-panel-balance">
           <div className="wallet-balance-lbl">Total Balance</div>
           <div className="wallet-balance-val">
-            4.25 <span style={{ fontSize: "14px", color: "var(--t2)" }}>ETH</span>
+            {balanceData ? Number(formatEther(balanceData.value)).toFixed(4) : "0.0000"}{" "}
+            <span style={{ fontSize: "14px", color: "var(--t2)" }}>{balanceData?.symbol || "ETH"}</span>
           </div>
-          <div className="wallet-balance-usd">≈ $7,735.00 USD</div>
+          <div className="wallet-balance-usd">Sepolia testnet balance</div>
         </div>
         <div className="wallet-panel-footer">
           <button className="wallet-disconnect-btn" type="button" onClick={disconnectWallet}>

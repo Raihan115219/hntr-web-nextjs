@@ -1,3 +1,62 @@
+// ── shared helpers for laying out the real downline tree ──
+function topoShortAddr(addr) {
+  if (!addr || addr.length < 10) return addr || '';
+  return addr.slice(0, 6) + '...' + addr.slice(-4);
+}
+
+function topoCountLeaves(n) {
+  if (!n.children || n.children.length === 0) return 1;
+  return n.children.reduce((sum, c) => sum + topoCountLeaves(c), 0);
+}
+
+/**
+ * Recursively positions a real NetworkTreeNode (from GET /api/network/:username/tree)
+ * into the same {nodes, edges} shape the renderer below expects, allocating each
+ * child a horizontal band proportional to its leaf count (rather than the old
+ * fixed 3×3×2 layout) so any branching factor lays out without overlap.
+ */
+function topoBuildLayout(root, W) {
+  const nodes = [];
+  const edges = [];
+  const Y_BY_LEVEL = [46, 138, 228, 304];
+  const MAX_LEVEL = 3;
+
+  function place(n, level, xStart, xEnd, parentId) {
+    const x = (xStart + xEnd) / 2;
+    const id = nodes.length;
+    const bandWidth = xEnd - xStart;
+    const node = {
+      id, x, y: Y_BY_LEVEL[level], level,
+      label: level === 0 ? 'You' : '',
+      sub: level === 0 ? (n.rank || 'Unranked') : '',
+      user: level === 0 ? '' : n.username,
+      addr: level === 0 ? '' : topoShortAddr(n.walletAddress),
+      mem: level === 0 ? '' : (n.tier || 'None'),
+      cardW: level === 1 ? Math.max(64, Math.min(112, bandWidth * 0.82))
+        : level === 2 ? Math.max(38, Math.min(50, bandWidth * 0.82))
+        : undefined,
+    };
+    nodes.push(node);
+    if (parentId !== null) edges.push([parentId, id]);
+
+    const children = n.children || [];
+    if (level < MAX_LEVEL && children.length > 0) {
+      const totalLeaves = children.reduce((s, c) => s + topoCountLeaves(c), 0) || 1;
+      let cursor = xStart;
+      children.forEach((child) => {
+        const leaves = topoCountLeaves(child);
+        const width = bandWidth * (leaves / totalLeaves);
+        place(child, level + 1, cursor, cursor + width, id);
+        cursor += width;
+      });
+    }
+    return id;
+  }
+
+  place(root, 0, 0, W, null);
+  return { nodes, edges };
+}
+
 function drawNetworkTree() {
   const svg = document.getElementById('topoSvg');
   if (!svg) return;
@@ -12,54 +71,19 @@ function drawNetworkTree() {
   const t2val  = cs.getPropertyValue('--t2').trim()     || 'rgba(58,67,49,.64)';
   const e2val  = cs.getPropertyValue('--e2').trim()     || '#ffffff';
 
-  // ── synthetic user identity helpers ──
-  const memTiers=['Scout','Tracker','Ranger','Hunter','Apex'];
-  const unames=['Alpha','Nova','Byte','Orion','Vega','Lynx','Echo','Zephyr','Quill','Rune','Sable','Onyx','Cipher','Delta','Flux','Grove','Halo','Iris','Koda','Wren'];
-  function mkHex(s){let h=(Math.imul(s^0x9e3779b1,2654435761))>>>0;return h.toString(16).toUpperCase().padStart(6,'0');}
-  function mkAddr(s){const a=mkHex(s*7+11);return '0x'+a.slice(0,3)+'...'+a.slice(3,4);}
-  function mkUser(s){return unames[s%unames.length]+s;}
-  function mkMem(s){return memTiers[s%memTiers.length];}
+  // ── real downline tree, wired in from network/page.tsx via window.__networkTreeData ──
+  const treeData = window.__networkTreeData || null;
+  const hasRealData = !!treeData;
+  const hasDownline = hasRealData && Array.isArray(treeData.children) && treeData.children.length > 0;
 
-  // ── Build node tree: root → 3 L1 → 3 L2 each → 2 L3 each ──
-  const nodes = [];
-  const edges = [];
-
-  // L0 root
-  nodes.push({id:0, x:W/2,       y:46,  level:0, label:'You', sub:'Elite Hunter'});
-
-  // L1 (3 nodes)
-  const l1Xs = [W*0.18, W*0.50, W*0.82];
-  const l1Labels = ['0x71C...492','0x3A8...12D','0x9FE...88A'];
-  const l1Subs   = ['$4.2K','$1.8K','$9.2K'];
-  const l1Users  = ['AlphaHunter','NovaScout','ByteRanger'];
-  const l1Mem    = ['Apex','Hunter','Ranger'];
-  for (let i=0;i<3;i++) {
-    nodes.push({id:1+i, x:l1Xs[i], y:138, level:1, label:l1Labels[i], sub:l1Subs[i], user:l1Users[i], addr:l1Labels[i], mem:l1Mem[i]});
-    edges.push([0, 1+i]);
-  }
-
-  // L2 (9 nodes, 3 per L1)
-  const l2Offsets = [-0.105, 0, 0.105];
-  const l2Lbs = ['0xB4D','0xA2E','0xC8F','0xD7B','0xF93','0xE11','0x81E','0x4FA','0x22D'];
-  const l2Sbs = ['$1.2K','$890','$440','$2.1K','$670','$310','$430','$180','$90'];
-  for (let i=0;i<3;i++) {
-    for (let j=0;j<3;j++) {
-      const id = 4 + i*3 + j;
-      nodes.push({id, x: l1Xs[i] + l2Offsets[j]*W, y:228, level:2, label:l2Lbs[i*3+j], sub:l2Sbs[i*3+j], user:mkUser(id), addr:mkAddr(id), mem:mkMem(id)});
-      edges.push([1+i, id]);
-    }
-  }
-
-  // L3 (18 nodes, 2 per L2)
-  const l3Colors = [olive, sage];
-  for (let i=0;i<9;i++) {
-    for (let j=0;j<2;j++) {
-      const id = 13 + i*2 + j;
-      const parentNode = nodes[4+i];
-      const xOff = (j===0 ? -0.052 : 0.052) * W;
-      nodes.push({id, x: parentNode.x + xOff, y:304, level:3, label:'', sub:'', user:mkUser(id), addr:mkAddr(id), mem:mkMem(id)});
-      edges.push([4+i, id]);
-    }
+  let nodes, edges;
+  if (hasRealData) {
+    const layout = topoBuildLayout(treeData, W);
+    nodes = layout.nodes;
+    edges = layout.edges;
+  } else {
+    nodes = [{ id: 0, x: W / 2, y: 46, level: 0, label: 'You', sub: '' }];
+    edges = [];
   }
 
   // ── ZOOM STATE ──
@@ -167,9 +191,9 @@ function drawNetworkTree() {
         t.textContent = n[k]; grp.appendChild(t);
       });
     } else if (n.level === 1) {
-      drawUserCard(grp, n, 112, 46, true);
+      drawUserCard(grp, n, n.cardW || 112, 46, true);
     } else if (n.level === 2) {
-      drawUserCard(grp, n, 50, 34, false);
+      drawUserCard(grp, n, n.cardW || 50, 34, false);
     } else {
       // L3 — blank square, reveals identity popup on hover
       const s = 12;
@@ -186,6 +210,25 @@ function drawNetworkTree() {
     }
     g.appendChild(grp);
   });
+
+  // ── empty / loading state copy (drawn once, below the lone root node) ──
+  if (!hasRealData || !hasDownline) {
+    const lines = !hasRealData
+      ? ['Loading your network…', '']
+      : ['No referrals yet.', 'Share your referral link to start building your network.'];
+    lines.forEach((text, i) => {
+      if (!text) return;
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', W / 2); t.setAttribute('y', 120 + i * 16);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', "'Space Mono',monospace");
+      t.setAttribute('font-size', i === 0 ? '10' : '8');
+      t.setAttribute('fill', i === 0 ? olive : t2val);
+      if (i === 0) t.setAttribute('font-weight', '700');
+      t.textContent = text;
+      g.appendChild(t);
+    });
+  }
 
   // ── ZOOM CONTROLS (SVG buttons) ──
   function applyTransform() {
