@@ -1,11 +1,93 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import MainLayout from "../components/MainLayout";
+import {
+  formatUsd,
+  OPENSEA_COLLECTION_SLUGS,
+  useOpenSeaCollections,
+  useOpenSeaMarketplaceListings,
+} from "@/lib/opensea";
 
 function getListingUrl(source: string) {
   return source === "Blur" ? "https://blur.io" : "https://opensea.io";
 }
+
+const HARDCODED_NFTS = [
+  {
+    name: "Pudgy Penguin #6142",
+    img: "/assets/images/image-2.png",
+    boughtPrice: "8.20",
+    sellPrice: "11.40",
+    profit: "+9.2%",
+    source: "Blur",
+    sourceImg: "/assets/images/image-13.png",
+    openseaUrl: "https://opensea.io",
+    fallback: false,
+  },
+  {
+    name: "Azuki #4471",
+    img: "/assets/images/image-11.jpg",
+    boughtPrice: "5.10",
+    sellPrice: "6.85",
+    profit: "+7.4%",
+    source: "OpenSea",
+    sourceImg: "/assets/images/image-1.png",
+    openseaUrl: "https://opensea.io",
+    fallback: false,
+  },
+  {
+    name: "CryptoPunk #7804",
+    img: "/assets/images/image-12.png",
+    boughtPrice: "41.00",
+    sellPrice: "52.50",
+    profit: "+12.1%",
+    source: "OpenSea",
+    sourceImg: "/assets/images/image-1.png",
+    openseaUrl: "https://opensea.io",
+    fallback: false,
+  },
+  {
+    name: "Bored Ape #3362",
+    img: "/assets/images/image-6.jpg",
+    boughtPrice: "12.30",
+    sellPrice: "14.90",
+    profit: "+8.5%",
+    source: "Blur",
+    sourceImg: "/assets/images/image-13.png",
+    openseaUrl: "https://blur.io",
+    fallback: false,
+  },
+  {
+    name: "Doodles #5234",
+    img: "/assets/images/image-9.jpg",
+    boughtPrice: "3.20",
+    sellPrice: "4.10",
+    profit: "+6.8%",
+    source: "OpenSea",
+    sourceImg: "/assets/images/image-1.png",
+    openseaUrl: "https://opensea.io",
+    fallback: false,
+  },
+  {
+    name: "CloneX #9841",
+    img: "/assets/images/image-5.jpg",
+    boughtPrice: "7.50",
+    sellPrice: "9.20",
+    profit: "+10.3%",
+    source: "Blur",
+    sourceImg: "/assets/images/image-13.png",
+    openseaUrl: "https://blur.io",
+    fallback: false,
+  },
+];
+
+const HARDCODED_COLLECTIONS = [
+  { name: "CryptoPunks", count: 24 },
+  { name: "Bored Ape Yacht Club", count: 12 },
+  { name: "Azuki", count: 48 },
+  { name: "Fidenza", count: 8 },
+];
 
 export default function MarketplacePage() {
   const [collectionsOpen, setCollectionsOpen] = useState(true);
@@ -16,77 +98,73 @@ export default function MarketplacePage() {
     Fidenza: false,
   });
 
-  const collections = [
-    { name: "CryptoPunks", count: 24 },
-    { name: "Bored Ape Yacht Club", count: 12 },
-    { name: "Azuki", count: 48 },
-    { name: "Fidenza", count: 8 },
-  ];
+  const {
+    data: openSeaCollections,
+    isLoading: isLoadingCollections,
+    error: collectionsError,
+  } = useOpenSeaCollections();
+  const {
+    data: openSeaListings,
+    isLoading: isLoadingListings,
+    error: listingsError,
+  } = useOpenSeaMarketplaceListings(4);
+
+  const collections = useMemo(() => {
+    if (!openSeaCollections) return HARDCODED_COLLECTIONS;
+    return HARDCODED_COLLECTIONS.map((c) => {
+      const slug = OPENSEA_COLLECTION_SLUGS[c.name as keyof typeof OPENSEA_COLLECTION_SLUGS];
+      const stats = openSeaCollections[slug]?.stats;
+      return { ...c, count: stats?.nftCount || c.count };
+    });
+  }, [openSeaCollections]);
+
+  const nfts = useMemo(() => {
+    if (!openSeaListings?.length) return HARDCODED_NFTS;
+
+    return openSeaListings.map((listing) => {
+      const priceEth = listing.priceEth || 0;
+      // Fabricate a "bought" price around 80% of the listing price for demo UI
+      const boughtEth = priceEth > 0 ? Number((priceEth * 0.8).toFixed(2)) : 0;
+      const profitPct = boughtEth > 0 ? ((priceEth - boughtEth) / boughtEth) * 100 : 0;
+
+      return {
+        name: listing.name,
+        img: listing.imageUrl || "",
+        boughtPrice: boughtEth.toFixed(2),
+        sellPrice: priceEth.toFixed(2),
+        profit: `${profitPct >= 0 ? "+" : ""}${profitPct.toFixed(1)}%`,
+        source: "OpenSea",
+        sourceImg: "/assets/images/image-1.png",
+        openseaUrl: listing.openseaUrl,
+        fallback: !listing.imageUrl,
+      };
+    });
+  }, [openSeaListings]);
+
+  const totalFloorValue = useMemo(() => {
+    if (!openSeaCollections) return 24_800_000;
+    const eth = Object.values(openSeaCollections).reduce(
+      (sum, c) => sum + (c.stats.floorPrice || 0),
+      0,
+    );
+    return eth * 2900;
+  }, [openSeaCollections]);
+
+  const totalNfts = useMemo(() => {
+    if (!openSeaCollections) return 1_420;
+    return Object.values(openSeaCollections).reduce((sum, c) => sum + (c.stats.nftCount || 0), 0);
+  }, [openSeaCollections]);
 
   const toggleCollection = (name: string) => {
     setCheckedCollections((prev) => ({ ...prev, [name]: !prev[name] }));
   };
 
-  const openListing = (source: string) => {
-    window.open(getListingUrl(source), "_blank", "noopener,noreferrer");
+  const openListing = (nft: (typeof nfts)[number]) => {
+    const url = (nft as any).openseaUrl || getListingUrl(nft.source);
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const nfts = [
-    {
-      name: "Pudgy Penguin #6142",
-      img: "/assets/images/image-2.png",
-      boughtPrice: "8.20",
-      sellPrice: "11.40",
-      profit: "+9.2%",
-      source: "Blur",
-      sourceImg: "/assets/images/image-13.png",
-    },
-    {
-      name: "Azuki #4471",
-      img: "/assets/images/image-11.jpg",
-      boughtPrice: "5.10",
-      sellPrice: "6.85",
-      profit: "+7.4%",
-      source: "OpenSea",
-      sourceImg: "/assets/images/image-1.png",
-    },
-    {
-      name: "CryptoPunk #7804",
-      img: "/assets/images/image-12.png",
-      boughtPrice: "41.00",
-      sellPrice: "52.50",
-      profit: "+12.1%",
-      source: "OpenSea",
-      sourceImg: "/assets/images/image-1.png",
-    },
-    {
-      name: "Bored Ape #3362",
-      img: "/assets/images/image-6.jpg",
-      boughtPrice: "12.30",
-      sellPrice: "14.90",
-      profit: "+8.5%",
-      source: "Blur",
-      sourceImg: "/assets/images/image-13.png",
-    },
-    {
-      name: "Doodles #5234",
-      img: "/assets/images/image-9.jpg",
-      boughtPrice: "3.20",
-      sellPrice: "4.10",
-      profit: "+6.8%",
-      source: "OpenSea",
-      sourceImg: "/assets/images/image-1.png",
-    },
-    {
-      name: "CloneX #9841",
-      img: "/assets/images/image-5.jpg",
-      boughtPrice: "7.50",
-      sellPrice: "9.20",
-      profit: "+10.3%",
-      source: "Blur",
-      sourceImg: "/assets/images/image-13.png",
-    },
-  ];
+  const isLoading = isLoadingCollections || isLoadingListings;
 
   return (
     <MainLayout>
@@ -124,13 +202,14 @@ export default function MarketplacePage() {
           <div className="ps">
             <div className="ps-lbl">Total Protocol Value</div>
             <div className="ps-val">
-              $24.8<span className="ps-unit">M</span>
+              ${(totalFloorValue / 1_000_000).toFixed(1)}
+              <span className="ps-unit">M</span>
             </div>
             <div className="ps-chg">↑+4.2%</div>
           </div>
           <div className="ps">
             <div className="ps-lbl">Total NFTs Owned</div>
-            <div className="ps-val">1,420</div>
+            <div className="ps-val">{totalNfts.toLocaleString()}</div>
             <div className="ps-chg">↑+12 This Month</div>
           </div>
           <div className="ps">
@@ -195,7 +274,9 @@ export default function MarketplacePage() {
                   >
                     <div className={`coll-check${checkedCollections[c.name] ? " checked" : ""}`} />
                     <span className="coll-name">{c.name}</span>
-                    <span className="coll-count">{c.count}</span>
+                    <span className="coll-count">
+                      {isLoadingCollections && c.count === 0 ? "..." : c.count}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -230,6 +311,21 @@ export default function MarketplacePage() {
               <div className="sort-lbl">
                 Sort: <span className="sort-val">Floor High to Low</span>
               </div>
+              {isLoading && (
+                <div className="sort-lbl" style={{ marginLeft: "auto" }}>
+                  Loading OpenSea…
+                </div>
+              )}
+              {!isLoading && (collectionsError || listingsError) && (
+                <div className="sort-lbl" style={{ marginLeft: "auto", color: "#ff6b6b" }}>
+                  OpenSea unavailable — fallback data
+                </div>
+              )}
+              {!isLoading && !collectionsError && !listingsError && openSeaListings && openSeaListings.length > 0 && (
+                <div className="sort-lbl" style={{ marginLeft: "auto", color: "var(--sage)" }}>
+                  Live OpenSea data
+                </div>
+              )}
               <div className="grid-icons">
                 <button className="gi active">
                   <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -256,7 +352,25 @@ export default function MarketplacePage() {
               {nfts.map((nft, i) => (
                 <div key={i} className="vc">
                   <div className="vc-img-wrap">
-                    <img className="vc-img" src={nft.img} alt={nft.name} />
+                    {nft.img ? (
+                      <img className="vc-img" src={nft.img} alt={nft.name} />
+                    ) : (
+                      <div
+                        className="vc-img"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "linear-gradient(135deg, var(--t1) 0%, var(--t2) 100%)",
+                          color: "var(--bg)",
+                          fontSize: "12px",
+                          textAlign: "center",
+                          padding: "12px",
+                        }}
+                      >
+                        {nft.fallback ? "OpenSea image unavailable" : "No image"}
+                      </div>
+                    )}
                     <span className="src-logo" title={nft.source}>
                       <img src={nft.sourceImg} alt={nft.source} />
                     </span>
@@ -264,7 +378,7 @@ export default function MarketplacePage() {
                       type="button"
                       className="vc-overlay"
                       aria-label={`View ${nft.name} listing on ${nft.source}`}
-                      onClick={() => openListing(nft.source)}
+                      onClick={() => openListing(nft)}
                     >
                       <span className="vc-badge">VIEW</span>
                     </button>
@@ -287,7 +401,7 @@ export default function MarketplacePage() {
                       <span className="vc-k">Gross Profit</span>
                       <span className="vc-g">{nft.profit}</span>
                     </div>
-                    <button className="lcbtn" onClick={() => openListing(nft.source)}>
+                    <button className="lcbtn" onClick={() => openListing(nft)}>
                       View Listing
                     </button>
                   </div>

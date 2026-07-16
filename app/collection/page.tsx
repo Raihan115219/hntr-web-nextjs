@@ -1,8 +1,14 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
+import {
+  formatFloorPrice,
+  formatUsd,
+  OPENSEA_COLLECTION_SLUGS,
+  useOpenSeaCollections,
+} from "@/lib/opensea";
 
 const RING_CIRC = 201.06;
 
@@ -391,12 +397,9 @@ const POS_TOTALS: Record<PosView, string> = {
   progress: "85",
 };
 
-const COLLECTIONS = [
-  { name: "CryptoPunks", count: 24, checked: true },
-  { name: "Bored Ape Yacht Club", count: 12, checked: true },
-  { name: "Azuki", count: 48, checked: false },
-  { name: "Fidenza", count: 8, checked: false },
-];
+const COLLECTIONS = Object.entries(OPENSEA_COLLECTION_SLUGS).map(
+  ([name]) => ({ name, count: 0, checked: true })
+);
 
 function PosVal({ eth, usd }: { eth: string; usd: string }) {
   return (
@@ -413,15 +416,73 @@ export default function CollectionPage() {
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [posView, setPosView] = useState<PosView>("listed");
   const [ringPcts, setRingPcts] = useState<Record<number, number>>({});
+  const {
+    data: openSeaCollections,
+    isLoading: isLoadingCollections,
+    error: collectionsError,
+  } = useOpenSeaCollections();
+
+  const ethUsd = 2900;
+
+  const displayedCollections = useMemo(() => {
+    if (!openSeaCollections) return collections;
+    return collections.map((c) => {
+      const slug = OPENSEA_COLLECTION_SLUGS[c.name as keyof typeof OPENSEA_COLLECTION_SLUGS];
+      const stats = openSeaCollections[slug]?.stats;
+      return { ...c, count: stats?.nftCount || c.count };
+    });
+  }, [collections, openSeaCollections]);
+
+  const totalFloorValue = useMemo(() => {
+    if (!openSeaCollections) return { eth: 30, usd: "$65,000.32" };
+    const eth = Object.values(openSeaCollections).reduce(
+      (sum, c) => sum + (c.stats.floorPrice || 0),
+      0,
+    );
+    return { eth: Number(eth.toFixed(2)), usd: formatUsd(eth) };
+  }, [openSeaCollections]);
+
+  const totalNftCount = useMemo(() => {
+    if (!openSeaCollections) return 14;
+    return Object.values(openSeaCollections).reduce((sum, c) => sum + (c.stats.nftCount || 0), 0);
+  }, [openSeaCollections]);
+
+  const coOwnedNfts = useMemo<CoOwnedNft[]>(() => {
+    if (!openSeaCollections) return CO_OWNED_NFTS;
+    const out: CoOwnedNft[] = [];
+    for (const [name, slug] of Object.entries(OPENSEA_COLLECTION_SLUGS)) {
+      const { stats, nfts } = openSeaCollections[slug] || { stats: null, nfts: [] };
+      for (const nft of nfts.slice(0, 2)) {
+        const floor = stats?.floorPrice ?? 0;
+        const listedEth = floor > 0 ? floor : 0;
+        out.push({
+          id: out.length + 1,
+          name,
+          tokenId: `#${nft.tokenId}`,
+          img: nft.imageUrl || "",
+          pool: "POOL #842",
+          sharePct: 22,
+          listedPrice: listedEth.toFixed(2),
+          listedUsd: formatUsd(listedEth),
+          myShare: "2.9",
+          myShareUsd: "$6,467",
+          profit: "10%",
+          status: "Listed",
+          delay: `${out.length * 0.04}s`,
+        });
+      }
+    }
+    return out.length > 0 ? out : CO_OWNED_NFTS;
+  }, [openSeaCollections]);
 
   useEffect(() => {
-    const timers = CO_OWNED_NFTS.map((nft, i) =>
+    const timers = coOwnedNfts.map((nft, i) =>
       setTimeout(() => {
         setRingPcts((prev) => ({ ...prev, [nft.id]: nft.sharePct }));
       }, 200 + i * 80)
     );
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [coOwnedNfts]);
 
   const goToPoolDetail = (nftId: number) => {
     router.push(`/pool/${nftId === 1 ? "54587" : nftId}`);
@@ -455,15 +516,15 @@ export default function CollectionPage() {
               <div className="coll-stat">
                 <div className="cs-lbl">NFT Owned</div>
                 <div className="cs-val">
-                  14 <span className="cs-unit">NFTs</span>
+                  {totalNftCount} <span className="cs-unit">NFTs</span>
                 </div>
               </div>
               <div className="coll-stat">
                 <div className="cs-lbl">Total NFTs Value</div>
                 <div className="cs-val">
-                  30 <span className="eth-ic"></span>
+                  {totalFloorValue.eth} <span className="eth-ic"></span>
                 </div>
-                <div className="cs-sub">$65,000.32</div>
+                <div className="cs-sub">{totalFloorValue.usd}</div>
               </div>
               <div className="coll-stat">
                 <div className="cs-lbl">Unrealized Profit</div>
@@ -509,7 +570,7 @@ export default function CollectionPage() {
                     </svg>
                   </button>
                   <div className="panel-body" hidden={!collectionsOpen}>
-                    {collections.map((coll) => (
+                    {displayedCollections.map((coll) => (
                       <div
                         key={coll.name}
                         className="coll-row"
@@ -525,7 +586,9 @@ export default function CollectionPage() {
                       >
                         <div className={`coll-check${coll.checked ? " checked" : ""}`}></div>
                         <span className="coll-name">{coll.name}</span>
-                        <span className="coll-count">{coll.count}</span>
+                        <span className="coll-count">
+                          {isLoadingCollections && coll.count === 0 ? "..." : coll.count}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -556,19 +619,51 @@ export default function CollectionPage() {
               </div>
 
               <div className="coll-main-right">
-                <div className="coll-sh">
+                <div className="coll-sh" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                   <div className="coll-sh-title">Current Co-Owned NFTs</div>
+                  {isLoadingCollections && <span style={{ color: "var(--t2)", fontSize: "12px" }}>Loading OpenSea…</span>}
+                  {collectionsError && (
+                    <span style={{ color: "#ff6b6b", fontSize: "12px" }}>
+                      OpenSea unavailable — showing fallback data
+                    </span>
+                  )}
+                  {!isLoadingCollections && !collectionsError && openSeaCollections && Object.keys(openSeaCollections).length > 0 && (
+                    <span style={{ color: "var(--sage)", fontSize: "12px" }}>Live OpenSea data</span>
+                  )}
                 </div>
 
                 <div className="nc-grid" id="ncGrid">
-                  {CO_OWNED_NFTS.map((nft) => {
+                  {isLoadingCollections && coOwnedNfts === CO_OWNED_NFTS && (
+                    <div className="nc-loading" style={{ padding: "24px", color: "var(--t2)" }}>
+                      Loading live OpenSea data...
+                    </div>
+                  )}
+                  {coOwnedNfts.map((nft) => {
                     const animatedPct = ringPcts[nft.id] ?? 0;
                     const ringOffset = RING_CIRC - (animatedPct / 100) * RING_CIRC;
 
                     return (
                       <div key={nft.id} className="nc" style={{ animationDelay: nft.delay }}>
                         <div className="nc-img-wrap">
-                          <img className="nc-img" src={nft.img} alt={nft.name} />
+                          {nft.img ? (
+                            <img className="nc-img" src={nft.img} alt={nft.name} />
+                          ) : (
+                            <div
+                              className="nc-img"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                background: "linear-gradient(135deg, var(--t1) 0%, var(--t2) 100%)",
+                                color: "var(--bg)",
+                                fontSize: "12px",
+                                textAlign: "center",
+                                padding: "12px",
+                              }}
+                            >
+                              OpenSea image unavailable
+                            </div>
+                          )}
                           <div className="nc-pool-tag">{nft.pool}</div>
                           <div className="nc-ring-wrap">
                             <svg className="nc-ring-svg" viewBox="0 0 80 80" width="70" height="70">
