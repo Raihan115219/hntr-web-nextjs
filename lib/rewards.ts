@@ -87,14 +87,16 @@ export interface LeadershipPayout {
 }
 
 export interface TransactionEntry {
-  type: "CommissionEarned" | "CommissionWithdrawn" | "MembershipPurchased" | "MembershipUpgraded";
-  txHash: string;
+  type: "CommissionEarned" | "CommissionWithdrawn" | "MembershipPurchased" | "MembershipUpgraded" | "COMMISSION_EARNED" | "COMMISSION_WITHDRAWN" | "COMMISSION_CLAIM" | "PURCHASE" | "UPGRADE";
+  txHash?: string;
   blockNumber: number;
   timestamp: string | null;
   amount: string | null;
+  lockedAmount?: string | null;
   token: string | null;
   tier?: string;
   level?: number;
+  status?: "PENDING" | "CONFIRMED" | "FAILED";
 }
 
 /**

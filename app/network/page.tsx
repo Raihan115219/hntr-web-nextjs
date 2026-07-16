@@ -28,9 +28,14 @@ declare global {
 
 const TX_TYPE_LABEL: Record<TransactionEntry["type"], string> = {
   CommissionEarned: "Referral Commission",
+  COMMISSION_EARNED: "Referral Commission",
   CommissionWithdrawn: "Commission Claimed",
+  COMMISSION_WITHDRAWN: "Commission Claimed",
   MembershipPurchased: "Membership Purchase",
+  PURCHASE: "Membership Purchase",
   MembershipUpgraded: "Membership Upgrade",
+  UPGRADE: "Membership Upgrade",
+  COMMISSION_CLAIM: "Commission Claimed",
 };
 
 function formatTxDate(iso: string | null) {
@@ -315,12 +320,17 @@ export default function NetworkPage() {
               </div>
               <div className="net-stat">
                 <div className="net-stat-lbl" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  HNTR Points
-                  <span className="info-i" data-tip="HNTR POINTS COMING SOON">
+                  Locked in Pool
+                  <span className="info-i" data-tip="20% of every referral commission is locked in the pool wallet per the HNTR tokenomics.">
                     i
                   </span>
                 </div>
-                <div className="net-stat-val">0</div>
+                <div className="net-stat-val">
+                  ${(summary?.lockedRemaining ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="net-stat-chg">
+                  20% of referral commissions
+                </div>
               </div>
               <div className="net-stat" style={{ position: "relative" }}>
                 <div className="net-stat-lbl">Membership</div>
@@ -365,7 +375,7 @@ export default function NetworkPage() {
                 ),
                 tag: "REAL-TIME",
                 name: "Referral Commissions",
-                desc: "Claimable now from your direct and indirect network volume.",
+                desc: `80% claimable now ($${(summary?.claimableNow ?? 0).toFixed(2)}) + 20% locked in pool ($${(summary?.lockedRemaining ?? 0).toFixed(2)}) from your direct and indirect network volume.`,
                 amount: `$${(summary?.claimableNow ?? 0).toFixed(2)}`,
                 delay: ".05s",
                 claimable: true,
@@ -599,9 +609,13 @@ export default function NetworkPage() {
                     </tr>
                   )}
                   {transactions.map((tx, i) => {
-                    const isOutgoing = tx.type === "MembershipPurchased" || tx.type === "MembershipUpgraded";
+                    const isOutgoing = tx.type === "MembershipPurchased" || tx.type === "MembershipUpgraded" || tx.type === "PURCHASE" || tx.type === "UPGRADE";
+                    const isCommissionEarned = tx.type === "CommissionEarned" || tx.type === "COMMISSION_EARNED";
+                    const hasLocked = isCommissionEarned && !!tx.lockedAmount && Number(tx.lockedAmount) > 0;
+                    const statusClass = tx.status === "PENDING" ? "pending" : tx.status === "FAILED" ? "failed" : "confirmed";
+                    const statusLabel = tx.status === "PENDING" ? "Pending" : tx.status === "FAILED" ? "Failed" : "Confirmed";
                     return (
-                      <tr key={`${tx.txHash}-${i}`}>
+                      <tr key={`${tx.txHash || tx.type}-${i}`}>
                         <td>{formatTxDate(tx.timestamp)}</td>
                         <td>{TX_TYPE_LABEL[tx.type] || tx.type}</td>
                         <td>{tx.tier ? `${tx.tier} tier` : tx.level ? `Level ${tx.level}` : "—"}</td>
@@ -612,11 +626,15 @@ export default function NetworkPage() {
                             fontWeight: 600,
                           }}
                         >
-                          {isOutgoing ? "-" : "+"}
-                          {formatTokenAmount(tx.amount)}
+                          <div>{isOutgoing ? "-" : "+"}{formatTokenAmount(tx.amount)}</div>
+                          {hasLocked && (
+                            <div style={{ fontSize: "11px", color: "var(--t2)", fontWeight: 400, marginTop: "2px" }}>
+                              + {formatTokenAmount(tx.lockedAmount)} locked (20%)
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: "center" }}>
-                          <span className="txh-status confirmed">Confirmed</span>
+                          <span className={`txh-status ${statusClass}`}>{statusLabel}</span>
                         </td>
                       </tr>
                     );
