@@ -53,7 +53,7 @@ export default function NetworkPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [profileFlipped, setProfileFlipped] = useState(false);
-  const { summary, refetchSummary } = useDashboardData();
+  const { summary, refetchSummary, isFetching } = useDashboardData();
   const { data: txData } = useTransactionHistory(15);
   const { data: treeData } = useNetworkTree(summary?.username);
   const { data: leadershipPayouts } = useLeadershipPayouts();
@@ -182,6 +182,28 @@ export default function NetworkPage() {
             <div className="hero-content">
               <div className="hero-title">MY NETWORK</div>
               <div className="hero-sub">HNTR REWARDS DASHBOARD & NETWORK COMMISSIONS</div>
+              <button
+                className="net-refresh-btn"
+                onClick={() => refetchSummary()}
+                disabled={isFetching}
+                title="Refresh rewards data"
+                style={{
+                  marginTop: "12px",
+                  padding: "6px 14px",
+                  fontSize: "12px",
+                  fontFamily: "var(--fd)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: "var(--t4)",
+                  background: "transparent",
+                  border: "1px solid var(--t4)",
+                  borderRadius: "4px",
+                  cursor: isFetching ? "wait" : "pointer",
+                  opacity: isFetching ? 0.6 : 1,
+                }}
+              >
+                {isFetching ? "Refreshing…" : "Refresh"}
+              </button>
             </div>
           </div>
 

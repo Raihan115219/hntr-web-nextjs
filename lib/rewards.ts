@@ -110,8 +110,9 @@ export function useDashboardData() {
     queryKey: ["rewards-summary", address],
     queryFn: () => api.get<RewardsSummary>(`/api/network/${address}/rewards-summary`),
     enabled: isConnected && !!address,
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   return {
@@ -119,6 +120,7 @@ export function useDashboardData() {
     isConnected,
     summary: summaryQuery.data,
     isLoading: summaryQuery.isLoading,
+    isFetching: summaryQuery.isFetching,
     isError: summaryQuery.isError,
     refetchSummary: summaryQuery.refetch,
   };
@@ -165,11 +167,12 @@ export function useNetworkTree(username: string | null | undefined, depth = 3) {
   });
 }
 
-/** Formats a raw ERC20 amount (assumed 6 decimals, matching this protocol's USDT/USDC) as a USD-ish string. */
-export function formatTokenAmount(raw: string | null | undefined): string {
-  if (!raw) return "$0.00";
-  const value = Number(raw) / 1e6;
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Formats a dollar amount string returned by the backend as a USD display string. */
+export function formatTokenAmount(value: string | null | undefined): string {
+  if (!value) return "$0.00";
+  const num = Number(value);
+  if (Number.isNaN(num)) return "$0.00";
+  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /**
