@@ -48,6 +48,7 @@ export default function SignupOverlays() {
   const [sponsorLocked, setSponsorLocked] = useState(false);
   const [currentUsername, setCurrentUsername] = useState("");
   const [connectBusy, setConnectBusy] = useState(false);
+  const [awaitingSignature, setAwaitingSignature] = useState(false);
   const [registerBusy, setRegisterBusy] = useState(false);
 
   const usernameRef = useRef<HTMLInputElement>(null);
@@ -117,6 +118,7 @@ export default function SignupOverlays() {
   const handleConnectWallet = async () => {
     if (connectBusy) return;
     setConnectBusy(true);
+    setAwaitingSignature(false);
     try {
       let account = address;
       if (!isConnected || !account) {
@@ -124,7 +126,9 @@ export default function SignupOverlays() {
       }
       if (!account) throw new Error("No wallet account available.");
 
+      setAwaitingSignature(true);
       await ensureAuth();
+      setAwaitingSignature(false);
 
       try {
         const profile = await api.get<{ profile: { username: string; tier: string } }>(`/api/users/wallet/${account}`);
@@ -151,6 +155,7 @@ export default function SignupOverlays() {
       notifyError("Connection failed", error);
     } finally {
       setConnectBusy(false);
+      setAwaitingSignature(false);
     }
   };
 
@@ -225,11 +230,29 @@ export default function SignupOverlays() {
                 Access requires a verified cryptographic signature. Connect your wallet to continue.
               </div>
               <button className="su-primary" type="button" onClick={handleConnectWallet} disabled={connectBusy}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <path d="M9 1L2 9h5l-1 6 7-8H8l1-6z" fill="currentColor" />
-                </svg>
-                {connectBusy ? "Connecting..." : "Connect Wallet"}
+                {awaitingSignature ? (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "suSpin 1s linear infinite" }}>
+                      <style>{"@keyframes suSpin{to{transform:rotate(360deg)}}"}</style>
+                      <circle cx="12" cy="12" r="10" strokeOpacity="0.25" strokeWidth="2.5" />
+                      <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+                    </svg>
+                    Waiting for signature...
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M9 1L2 9h5l-1 6 7-8H8l1-6z" fill="currentColor" />
+                    </svg>
+                    {connectBusy ? "Connecting..." : "Connect Wallet"}
+                  </>
+                )}
               </button>
+              {awaitingSignature && (
+                <div className="su-hint" style={{ marginTop: "12px", fontSize: "12px", color: "var(--t2)", textAlign: "center" }}>
+                  Please approve the signature request in your wallet.
+                </div>
+              )}
             </div>
             <div className="su-foot">
               <span className="lock">

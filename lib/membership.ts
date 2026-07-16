@@ -83,6 +83,13 @@ export async function purchaseOrUpgradeTier(
   const endpoint = quote.isUpgrade ? "/api/membership/upgrade" : "/api/membership/purchase";
   const result = await api.post<{ txHash: string }>(endpoint, { tier: tierName, token: tokenSymbol }, { auth: true });
 
+  if (!result.txHash) {
+    throw new MembershipFlowError(
+      "PURCHASE_FAILED",
+      "Membership purchase could not be completed. Please try again.",
+    );
+  }
+
   return {
     txHash: result.txHash,
     tier: tierName,
