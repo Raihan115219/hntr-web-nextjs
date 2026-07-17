@@ -1,12 +1,9 @@
-import type { Metadata } from "next";
 import "./globals.css";
 import ThemeTopLoader from "./components/ThemeTopLoader";
 import Providers from "./providers";
+import { rootMetadata } from "../lib/metadata";
 
-export const metadata: Metadata = {
-  title: "HNTR Next",
-  description: "Next.js TypeScript Tailwind migration for HNTR legacy HTML"
-};
+export const metadata = rootMetadata;
 
 export default function RootLayout({
   children

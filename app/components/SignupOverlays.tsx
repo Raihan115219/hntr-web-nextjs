@@ -2,10 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
+import { useRouter } from "nextjs-toploader/app";
 import { api, ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
-import { purchaseOrUpgradeTier, showMembershipSuccessModal, MembershipFlowError } from "../../lib/membership";
+import { purchaseOrUpgradeTier, MembershipFlowError } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
+
+function setSignupTierButtonsState(tierName: string | null, label?: string) {
+  document.querySelectorAll<HTMLButtonElement>(".su-tier-btn").forEach((btn) => {
+    const nameEl = btn.closest(".su-tier")?.querySelector(".su-tier-name");
+    const isActive = tierName !== null && nameEl?.textContent === tierName;
+    btn.disabled = tierName !== null;
+    if (isActive && label) btn.textContent = label;
+  });
+}
 
 function setModalBodyLock(locked: boolean) {
   document.body.classList.toggle("modal-open", locked);
@@ -41,6 +51,7 @@ declare global {
 }
 
 export default function SignupOverlays() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const { connectWallet } = useConnectWallet();
 
@@ -90,12 +101,24 @@ export default function SignupOverlays() {
 
       // Replace the fake "instant success" tier handler with the real purchase flow.
       window.suSelectTier = async (tierName: string) => {
+        setSignupTierButtonsState(tierName);
         try {
-          window.showToast?.({ title: "Processing purchase...", sub: `${tierName} membership - confirm in your wallet`, link: "" });
-          const result = await purchaseOrUpgradeTier(tierName);
-          showMembershipSuccessModal(result, currentUsername || usernameRef.current?.value || "");
+          const result = await purchaseOrUpgradeTier(tierName, "USDT", {
+            onAwaitingWallet: () => setSignupTierButtonsState(tierName, "Confirm in wallet"),
+            onWalletAccepted: () => setSignupTierButtonsState(tierName, "Loading..."),
+          });
+          closeSignupFlow();
+          window.showToast?.({
+            title: "Membership activated",
+            sub: `${result.tier} tier confirmed — welcome to your network.`,
+            link: "",
+          });
+          router.push("/network");
         } catch (error) {
           notifyError("Purchase failed", error);
+        } finally {
+          setSignupTierButtonsState(null);
+          window.initSuTiers?.();
         }
       };
     };
@@ -113,7 +136,7 @@ export default function SignupOverlays() {
     // currentUsername is read inside the closure via a stable pattern - re-registering
     // the handler on change keeps it accurate without needing a ref indirection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUsername]);
+  }, [currentUsername, router]);
 
   const handleConnectWallet = async () => {
     if (connectBusy) return;

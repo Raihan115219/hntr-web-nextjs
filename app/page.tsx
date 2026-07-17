@@ -9,6 +9,7 @@ import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import MainLayout from "./components/MainLayout";
 import { openDepositModal } from "../lib/deposit-modal";
+import { hasSeenIntro, markIntroSeen } from "../lib/intro-state";
 import { useRouter } from "nextjs-toploader/app";
 
 /** Intro canvas + typewriter only on desktop / larger viewports */
@@ -33,7 +34,7 @@ const SUB_SEGMENTS: Segment[] = [
     text:
       "HNTR is a perpetual, community-powered machine engineered to accumulate premium NFTs, execute profitable trades, and reward the community.\n\n"
   },
-  { text: "Decentralized. Transparent. ", cls: "tagline" },
+  { text: "Decentralized. Transparent.", cls: "tagline" },
   { text: "Forever in Motion.", cls: "tagline tw-orange" }
 ];
 
@@ -44,9 +45,9 @@ function buildTimedChars(segments: Segment[], baseSpeed: number) {
     [...seg.text].forEach((ch, idx) => {
       if (ch === "\n") return;
       let delay = baseSpeed;
-      if (ch === " ") delay = baseSpeed * 0.4;
-      else if (ch === ",") delay = baseSpeed * 4;
-      else if (ch === ".") delay = baseSpeed * 7;
+      if (ch === " ") delay = baseSpeed * 0.35;
+      else if (ch === ",") delay = baseSpeed * 1.4;
+      else if (ch === ".") delay = baseSpeed * 2;
       chars.push({ ch, seg: segIdx, idx, delay });
     });
   });
@@ -198,9 +199,10 @@ export default function HomePage() {
     ? currentSlide * (mobileSlideWidth || 0)
     : Math.min(currentSlide * cardStep, desktopMaxOffset);
   
-  const titleCharsRef = useRef(buildTimedChars(TITLE_SEGMENTS, 46));
-  const subCharsRef = useRef(buildTimedChars(SUB_SEGMENTS, 15));
+  const titleCharsRef = useRef(buildTimedChars(TITLE_SEGMENTS, 22));
+  const subCharsRef = useRef(buildTimedChars(SUB_SEGMENTS, 7));
   const targetRef = useRef(0);
+  const introSkippedRef = useRef(false);
   const autoPlayRef = useRef(false);
   const autoDirectionRef = useRef(1);
   const canvasFromRef = useRef<DOMRect | null>(null);
@@ -209,12 +211,18 @@ export default function HomePage() {
   const introEnabledRef = useRef(false);
 
   const skipIntroForMobile = () => {
+    markIntroSeen();
     setIntroEnabled(false);
     introEnabledRef.current = false;
     setIntro(false);
     setProgress(1);
     targetRef.current = 1;
     autoPlayRef.current = false;
+    setLoaderOut(true);
+    setTypedTitleCount(titleCharsRef.current.length);
+    setTypedSubCount(subCharsRef.current.length);
+    setBtnIn(true);
+    setHideCaret(true);
     document.body.classList.remove("intro-active");
 
     const cv = document.getElementById("introRevealCv") as HTMLCanvasElement | null;
@@ -225,18 +233,56 @@ export default function HomePage() {
     }
   };
 
+  const skipIntroComplete = () => {
+    introSkippedRef.current = true;
+    setIntroEnabled(false);
+    introEnabledRef.current = false;
+    setIntro(false);
+    setProgress(1);
+    targetRef.current = 1;
+    autoPlayRef.current = false;
+    setLoaderOut(true);
+    setTypedTitleCount(titleCharsRef.current.length);
+    setTypedSubCount(subCharsRef.current.length);
+    setBtnIn(true);
+    setHideCaret(true);
+    document.body.classList.remove("intro-active");
+
+    const feed = document.getElementById("feed-home");
+    if (feed) {
+      feed.style.transform = "";
+      feed.style.opacity = "";
+    }
+
+    const cv = document.getElementById("introRevealCv") as HTMLCanvasElement | null;
+    if (cv) {
+      cv.removeAttribute("style");
+      cv.style.opacity = "0";
+      cv.style.pointerEvents = "none";
+      const wrap = document.querySelector(".intro-imgwrap");
+      if (wrap && cv.parentNode !== wrap) wrap.appendChild(cv);
+    }
+  };
+
   // Decide intro eligibility before paint (avoids mobile flash)
   useLayoutEffect(() => {
+    if (hasSeenIntro()) {
+      skipIntroComplete();
+      return;
+    }
+
     const mq = window.matchMedia(INTRO_DESKTOP_MQ);
 
     const apply = () => {
+      if (hasSeenIntro() || introSkippedRef.current) {
+        skipIntroComplete();
+        return;
+      }
       if (mq.matches) {
         setIntroEnabled(true);
         introEnabledRef.current = true;
-        if (targetRef.current < 0.999) {
-          document.body.classList.add("intro-active");
-          setIntro(true);
-        }
+        document.body.classList.add("intro-active");
+        setIntro(true);
       } else {
         skipIntroForMobile();
       }
@@ -501,6 +547,10 @@ export default function HomePage() {
   }, [loaderOut]);
 
   useEffect(() => {
+    if (hasSeenIntro() || introSkippedRef.current) {
+      setLoaderOut(true);
+      return;
+    }
     const t = setTimeout(() => setLoaderOut(true), 1150);
     return () => clearTimeout(t);
   }, []);
@@ -707,14 +757,19 @@ export default function HomePage() {
         }
       }
       step();
-    }, 260);
+    }, 60);
+  }, [introEnabled, intro, typedTitleCount]);
+
+  useEffect(() => {
+    if (!introEnabled || !intro || typedTitleCount < titleCharsRef.current.length) return;
+    const t = setTimeout(() => setBtnIn(true), 180);
+    return () => clearTimeout(t);
   }, [introEnabled, intro, typedTitleCount]);
 
   useEffect(() => {
     if (!introEnabled || !intro || typedSubCount < subCharsRef.current.length) return;
     setCaretDone(true);
-    setBtnIn(true);
-    const t = setTimeout(() => setHideCaret(true), 3200);
+    const t = setTimeout(() => setHideCaret(true), 1400);
     return () => clearTimeout(t);
   }, [introEnabled, intro, typedSubCount]);
 
@@ -793,6 +848,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!introEnabled) return;
     if (progress >= 0.999) {
+      markIntroSeen();
       document.body.classList.remove("intro-active");
       setIntro(false);
     } else {
@@ -801,11 +857,12 @@ export default function HomePage() {
     }
   }, [introEnabled, progress]);
 
-  // Scroll handler
+  // Scroll handler — only while intro is active and not yet completed this session
   useEffect(() => {
-    if (!introEnabled) return;
+    if (!introEnabled || introSkippedRef.current) return;
 
     const drive = (delta: number) => {
+      if (introSkippedRef.current) return;
       autoPlayRef.current = false;
       targetRef.current = Math.max(0, Math.min(1, targetRef.current + delta));
       
@@ -820,6 +877,7 @@ export default function HomePage() {
     };
 
     const handleWheel = (e: WheelEvent) => {
+      if (introSkippedRef.current) return;
       const transitioning = progress < 0.999 || targetRef.current < 0.999;
       if (transitioning) {
         e.preventDefault();
@@ -833,6 +891,7 @@ export default function HomePage() {
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      if (introSkippedRef.current) return;
       if (touchY === null) {
         touchY = e.touches[0].clientY;
         return;
@@ -906,11 +965,11 @@ export default function HomePage() {
     return ease(t < 0 ? 0 : t > 1 ? 1 : t);
   };
 
-  const p = introEnabled ? progress : 1;
+  const p = introSkippedRef.current || !introEnabled ? 1 : progress;
   const introOpacity = 1 - seg(p, 0.06, 0.5);
   const leftOpacity = 1 - seg(p, 0, 0.42);
   const leftTransX = -26 * seg(p, 0, 0.42);
-  const hintOpacity = 1 - seg(p, 0, 0.22);
+  const hintOpacity = p < 0.04 ? 1 : 1 - seg(p, 0.04, 0.32);
   const sbTransY = (1 - seg(p, 0, 0.9)) * 112;
   const sbOpacity = seg(p, 0, 0.9);
   const railTransX = (1 - seg(p, 0.12, 0.97)) * 120;

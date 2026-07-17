@@ -42,6 +42,13 @@ export interface PurchaseResult {
   amountLabel: string;
 }
 
+export type PurchaseProgressHandlers = {
+  /** Fired immediately before the wallet approval prompt opens. */
+  onAwaitingWallet?: () => void;
+  /** Fired once the wallet request is signed (or before backend purchase when no approval is needed). */
+  onWalletAccepted?: () => void;
+};
+
 /**
  * Full purchase/upgrade flow:
  *  1. Ensure the wallet is connected and authenticated with the backend.
@@ -54,6 +61,7 @@ export interface PurchaseResult {
 export async function purchaseOrUpgradeTier(
   tierName: string,
   tokenSymbol: "USDT" | "USDC" = "USDT",
+  progress?: PurchaseProgressHandlers,
 ): Promise<PurchaseResult> {
   const account = getAccount(config);
   if (!account.address) {
@@ -71,13 +79,17 @@ export async function purchaseOrUpgradeTier(
 
   if (quote.needsApproval) {
     const tokenAddress = quote.tokenAddress || TOKEN_ADDRESSES[tokenSymbol];
+    progress?.onAwaitingWallet?.();
     const approveHash = await writeContract(config, {
       address: tokenAddress,
       abi: erc20Abi,
       functionName: "approve",
       args: [quote.contractAddress, BigInt(quote.amountDueRaw)],
     });
+    progress?.onWalletAccepted?.();
     await waitForTransactionReceipt(config, { hash: approveHash });
+  } else {
+    progress?.onWalletAccepted?.();
   }
 
   const endpoint = quote.isUpgrade ? "/api/membership/upgrade" : "/api/membership/purchase";

@@ -3,9 +3,10 @@
 import MainLayout from "../components/MainLayout";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
-import { api, ApiError } from "../../lib/api";
+import { useRouter } from "nextjs-toploader/app";
+import { ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
-import { purchaseOrUpgradeTier, showMembershipSuccessModal, MembershipFlowError } from "../../lib/membership";
+import { purchaseOrUpgradeTier, MembershipFlowError } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
 
 declare global {
@@ -18,11 +19,22 @@ declare global {
 
 type MosaicCanvas = HTMLCanvasElement & { __mosaic?: boolean };
 
+type TierPurchasePhase = "wallet" | "loading";
+
 export default function MembershipPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const { connectWallet } = useConnectWallet();
   const [pendingTier, setPendingTier] = useState<string | null>(null);
+  const [purchasePhase, setPurchasePhase] = useState<TierPurchasePhase | null>(null);
+
+  const tierButtonLabel = (tierName: string, defaultLabel: string) => {
+    if (pendingTier !== tierName) return defaultLabel;
+    if (purchasePhase === "loading") return "LOADING...";
+    if (purchasePhase === "wallet") return "CONFIRM IN WALLET";
+    return defaultLabel;
+  };
 
   useEffect(() => {
     window.__resources = {
@@ -53,6 +65,7 @@ export default function MembershipPage() {
   const selectTier = async (tierName: string) => {
     if (pendingTier) return;
     setPendingTier(tierName);
+    setPurchasePhase(null);
     try {
       let account = address;
       if (!isConnected || !account) {
@@ -62,17 +75,17 @@ export default function MembershipPage() {
 
       await ensureAuth();
 
-      const result = await purchaseOrUpgradeTier(tierName);
+      const result = await purchaseOrUpgradeTier(tierName, "USDT", {
+        onAwaitingWallet: () => setPurchasePhase("wallet"),
+        onWalletAccepted: () => setPurchasePhase("loading"),
+      });
 
-      let username = "";
-      try {
-        const profile = await api.get<{ profile: { username: string } }>(`/api/users/wallet/${account}`);
-        username = profile.profile.username;
-      } catch {
-        // referral link falls back to the tier name if we can't resolve a username
-      }
-
-      showMembershipSuccessModal(result, username);
+      window.showToast?.({
+        title: "Membership activated",
+        sub: `${result.tier} tier confirmed — welcome to your network.`,
+        link: "",
+      });
+      router.push("/network");
     } catch (error) {
       if (error instanceof ApiError && error.code === "USER_NOT_REGISTERED") {
         window.showToast?.({ title: "Complete sign up first", sub: "Finish registration, then pick a tier.", link: "" });
@@ -86,6 +99,7 @@ export default function MembershipPage() {
       }
     } finally {
       setPendingTier(null);
+      setPurchasePhase(null);
     }
   };
 
@@ -140,7 +154,7 @@ export default function MembershipPage() {
                 </div>
               </div>
               <button className="tier-btn" onClick={() => selectTier("Scout")} disabled={!!pendingTier}>
-                {pendingTier === "Scout" ? "PROCESSING..." : "SELECT"}
+                {tierButtonLabel("Scout", "SELECT")}
               </button>
             </div>
 
@@ -176,7 +190,7 @@ export default function MembershipPage() {
                 </div>
               </div>
               <button className="tier-btn" onClick={() => selectTier("Tracker")} disabled={!!pendingTier}>
-                {pendingTier === "Tracker" ? "PROCESSING..." : "SELECT"}
+                {tierButtonLabel("Tracker", "SELECT")}
               </button>
             </div>
 
@@ -213,7 +227,7 @@ export default function MembershipPage() {
                 </div>
               </div>
               <button className="tier-btn purchase" onClick={() => selectTier("Ranger")} disabled={!!pendingTier}>
-                {pendingTier === "Ranger" ? "PROCESSING..." : "PURCHASE"}
+                {tierButtonLabel("Ranger", "PURCHASE")}
               </button>
             </div>
 
@@ -249,7 +263,7 @@ export default function MembershipPage() {
                 </div>
               </div>
               <button className="tier-btn" onClick={() => selectTier("Hunter")} disabled={!!pendingTier}>
-                {pendingTier === "Hunter" ? "PROCESSING..." : "SELECT"}
+                {tierButtonLabel("Hunter", "SELECT")}
               </button>
             </div>
 
@@ -292,7 +306,7 @@ export default function MembershipPage() {
                 </div>
               </div>
               <button className="tier-btn" onClick={() => selectTier("Apex")} disabled={!!pendingTier}>
-                {pendingTier === "Apex" ? "PROCESSING..." : "SELECT"}
+                {tierButtonLabel("Apex", "SELECT")}
               </button>
             </div>
           </div>

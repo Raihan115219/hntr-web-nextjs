@@ -1,7 +1,7 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { ApiError } from "../../lib/api";
 import {
@@ -49,17 +49,135 @@ function formatTxDate(iso: string | null) {
   });
 }
 
+function getTxSource(tx: TransactionEntry) {
+  if (tx.tier) return `${tx.tier} tier`;
+  if (tx.level) return `Level ${tx.level}`;
+  return "—";
+}
+
+function getTxTypeCategory(type: TransactionEntry["type"]) {
+  switch (type) {
+    case "CommissionEarned":
+    case "COMMISSION_EARNED":
+      return "referral";
+    case "CommissionWithdrawn":
+    case "COMMISSION_WITHDRAWN":
+    case "COMMISSION_CLAIM":
+      return "claimed";
+    case "MembershipPurchased":
+    case "PURCHASE":
+      return "purchase";
+    case "MembershipUpgraded":
+    case "UPGRADE":
+      return "upgrade";
+    default:
+      return "other";
+  }
+}
+
+const TX_TYPE_FILTER_OPTIONS = [
+  { value: "all", label: "All Types" },
+  { value: "referral", label: "Referral Commission" },
+  { value: "claimed", label: "Commission Claimed" },
+  { value: "purchase", label: "Membership Purchase" },
+  { value: "upgrade", label: "Membership Upgrade" },
+] as const;
+
+const TX_PAGE_SIZE = 10;
+
+function getPageNumbers(current: number, total: number) {
+  if (total <= 1) return total === 1 ? [1] : [];
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+
+  const pages: (number | "ellipsis")[] = [1];
+  if (current > 3) pages.push("ellipsis");
+  for (let page = Math.max(2, current - 1); page <= Math.min(total - 1, current + 1); page += 1) {
+    pages.push(page);
+  }
+  if (current < total - 2) pages.push("ellipsis");
+  pages.push(total);
+  return pages;
+}
+
 export default function NetworkPage() {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [profileFlipped, setProfileFlipped] = useState(false);
   const { summary, refetchSummary, isFetching } = useDashboardData();
-  const { data: txData } = useTransactionHistory(15);
+  const { data: txData } = useTransactionHistory(100);
   const { data: treeData } = useNetworkTree(summary?.username);
   const { data: leadershipPayouts } = useLeadershipPayouts();
   const claimCommissions = useClaimCommissions();
   const [claimBusy, setClaimBusy] = useState(false);
+  const [txSearch, setTxSearch] = useState("");
+  const [txTypeFilter, setTxTypeFilter] = useState<(typeof TX_TYPE_FILTER_OPTIONS)[number]["value"]>("all");
+  const [txSourceFilter, setTxSourceFilter] = useState("all");
+  const [txFilterOpen, setTxFilterOpen] = useState(false);
+  const [txPage, setTxPage] = useState(1);
   const transactions = txData?.transactions || [];
+
+  const txSourceOptions = useMemo(() => {
+    const sources = new Set<string>();
+    transactions.forEach((tx) => sources.add(getTxSource(tx)));
+    return ["all", ...Array.from(sources).sort((a, b) => a.localeCompare(b))];
+  }, [transactions]);
+
+  const filteredTransactions = useMemo(() => {
+    const query = txSearch.trim().toLowerCase();
+
+    return transactions.filter((tx) => {
+      const typeLabel = TX_TYPE_LABEL[tx.type] || tx.type;
+      const source = getTxSource(tx);
+      const typeCategory = getTxTypeCategory(tx.type);
+
+      if (txTypeFilter !== "all" && typeCategory !== txTypeFilter) return false;
+      if (txSourceFilter !== "all" && source !== txSourceFilter) return false;
+
+      if (!query) return true;
+
+      const haystack = [
+        formatTxDate(tx.timestamp),
+        typeLabel,
+        source,
+        formatTokenAmount(tx.amount),
+        tx.status || "Confirmed",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [transactions, txSearch, txTypeFilter, txSourceFilter]);
+
+  const txTotalPages = Math.max(1, Math.ceil(filteredTransactions.length / TX_PAGE_SIZE));
+
+  const paginatedTransactions = useMemo(() => {
+    const safePage = Math.min(txPage, txTotalPages);
+    const start = (safePage - 1) * TX_PAGE_SIZE;
+    return filteredTransactions.slice(start, start + TX_PAGE_SIZE);
+  }, [filteredTransactions, txPage, txTotalPages]);
+
+  const txPageNumbers = useMemo(() => getPageNumbers(Math.min(txPage, txTotalPages), txTotalPages), [txPage, txTotalPages]);
+
+  useEffect(() => {
+    setTxPage(1);
+  }, [txSearch, txTypeFilter, txSourceFilter]);
+
+  useEffect(() => {
+    if (txPage > txTotalPages) setTxPage(txTotalPages);
+  }, [txPage, txTotalPages]);
+
+  useEffect(() => {
+    if (!txFilterOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".txh-filter-wrap")) setTxFilterOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [txFilterOpen]);
   const hasClaimableCommissions = !!(summary?.claimableNow && summary.claimableNow > 0);
   const claimDisabledReason = claimBusy
     ? "Claim in progress…"
@@ -596,19 +714,73 @@ export default function NetworkPage() {
                     <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4"></circle>
                     <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"></path>
                   </svg>
-                  <input className="txh-input" placeholder="Filter..." />
+                  <input
+                    className="txh-input"
+                    placeholder="Filter..."
+                    value={txSearch}
+                    onChange={(e) => setTxSearch(e.target.value)}
+                  />
                 </div>
-                <button className="txh-filter-btn">
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                    <path
-                      d="M1 3h10M3 6h6M5 9h2"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      strokeLinecap="round"
-                    ></path>
-                  </svg>{" "}
-                  Filter
-                </button>
+                <div className="txh-filter-wrap">
+                  <button
+                    type="button"
+                    className={`txh-filter-btn${txFilterOpen || txTypeFilter !== "all" || txSourceFilter !== "all" ? " active" : ""}`}
+                    onClick={() => setTxFilterOpen((open) => !open)}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                      <path
+                        d="M1 3h10M3 6h6M5 9h2"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                      ></path>
+                    </svg>{" "}
+                    Filter
+                  </button>
+                  {txFilterOpen && (
+                    <div className="txh-filter-panel">
+                      <label className="txh-filter-field">
+                        <span>Type</span>
+                        <select
+                          className="txh-filter-select"
+                          value={txTypeFilter}
+                          onChange={(e) => setTxTypeFilter(e.target.value as (typeof TX_TYPE_FILTER_OPTIONS)[number]["value"])}
+                        >
+                          {TX_TYPE_FILTER_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="txh-filter-field">
+                        <span>Source</span>
+                        <select
+                          className="txh-filter-select"
+                          value={txSourceFilter}
+                          onChange={(e) => setTxSourceFilter(e.target.value)}
+                        >
+                          {txSourceOptions.map((source) => (
+                            <option key={source} value={source}>
+                              {source === "all" ? "All Sources" : source}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        className="txh-filter-clear"
+                        onClick={() => {
+                          setTxTypeFilter("all");
+                          setTxSourceFilter("all");
+                          setTxSearch("");
+                        }}
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="table-scroll">
@@ -623,14 +795,14 @@ export default function NetworkPage() {
                   </tr>
                 </thead>
                 <tbody id="txhTable">
-                  {transactions.length === 0 && (
+                  {paginatedTransactions.length === 0 && (
                     <tr>
                       <td colSpan={5} style={{ textAlign: "center", color: "var(--t2)", padding: "24px 0" }}>
-                        No on-chain activity yet.
+                        {transactions.length === 0 ? "No on-chain activity yet." : "No transactions match your filters."}
                       </td>
                     </tr>
                   )}
-                  {transactions.map((tx, i) => {
+                  {paginatedTransactions.map((tx, i) => {
                     const isOutgoing = tx.type === "MembershipPurchased" || tx.type === "MembershipUpgraded" || tx.type === "PURCHASE" || tx.type === "UPGRADE";
                     const isCommissionEarned = tx.type === "CommissionEarned" || tx.type === "COMMISSION_EARNED";
                     const hasLocked = isCommissionEarned && !!tx.lockedAmount && Number(tx.lockedAmount) > 0;
@@ -640,7 +812,7 @@ export default function NetworkPage() {
                       <tr key={`${tx.txHash || tx.type}-${i}`}>
                         <td>{formatTxDate(tx.timestamp)}</td>
                         <td>{TX_TYPE_LABEL[tx.type] || tx.type}</td>
-                        <td>{tx.tier ? `${tx.tier} tier` : tx.level ? `Level ${tx.level}` : "—"}</td>
+                        <td>{getTxSource(tx)}</td>
                         <td
                           style={{
                             textAlign: "right",
@@ -666,14 +838,48 @@ export default function NetworkPage() {
             </div>
             <div className="txh-footer">
               <div className="txh-count" id="txhCount">
-                Showing {transactions.length} of {transactions.length} recent entries
+                {filteredTransactions.length === 0
+                  ? "Showing 0 entries"
+                  : `Showing ${(Math.min(txPage, txTotalPages) - 1) * TX_PAGE_SIZE + 1}-${Math.min(
+                      Math.min(txPage, txTotalPages) * TX_PAGE_SIZE,
+                      filteredTransactions.length
+                    )} of ${filteredTransactions.length} entries`}
               </div>
               <div className="txh-pages">
-                <button className="txh-pg">‹</button>
-                <button className="txh-pg active">1</button>
-                <button className="txh-pg">2</button>
-                <button className="txh-pg">3</button>
-                <button className="txh-pg">›</button>
+                <button
+                  type="button"
+                  className="txh-pg"
+                  disabled={txPage <= 1}
+                  onClick={() => setTxPage((page) => Math.max(1, page - 1))}
+                  aria-label="Previous page"
+                >
+                  ‹
+                </button>
+                {txPageNumbers.map((page, index) =>
+                  page === "ellipsis" ? (
+                    <span key={`ellipsis-${index}`} className="txh-pg-ellipsis">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      className={`txh-pg${page === txPage ? " active" : ""}`}
+                      onClick={() => setTxPage(page)}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  className="txh-pg"
+                  disabled={txPage >= txTotalPages}
+                  onClick={() => setTxPage((page) => Math.min(txTotalPages, page + 1))}
+                  aria-label="Next page"
+                >
+                  ›
+                </button>
               </div>
             </div>
           </div>
