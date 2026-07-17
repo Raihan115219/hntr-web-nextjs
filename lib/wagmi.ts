@@ -25,7 +25,7 @@ export const config = createConfig(
   }),
 );
 
-// This is used to tell the app that the config is available globally 
+// This is used to tell the app that the config is available globally in the app
 declare module "wagmi" {
   interface Register {
     config: typeof config;
