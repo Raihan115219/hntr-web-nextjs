@@ -6241,6 +6241,10 @@ body.dark #signupOverlay{background:rgba(0,0,0,.6);}
 /* step 3 */
 .su3-body{padding:26px 30px;}
 .su3-intro{font-family:var(--fn);font-size:13px;line-height:1.55;color:var(--t2);max-width:620px;margin-bottom:24px;}
+.su-purchase-status{margin:-8px 0 18px;padding:12px 14px;border-radius:6px;font-family:var(--fm);font-size:11px;line-height:1.5;color:var(--t3);background:var(--e3);border:0.5px solid var(--bd1)}
+.su-purchase-status.is-error{color:#b42318;background:rgba(180,35,24,.08);border-color:rgba(180,35,24,.24)}
+.su-purchase-status.is-success{color:var(--green);background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.24)}
+body.dark .su-purchase-status.is-error{color:#fca5a5;background:rgba(240,112,111,.12);border-color:rgba(240,112,111,.28)}
 .su-tiers{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;}
 .su-tier{position:relative;background:var(--e2);border:1px solid var(--bd2);border-radius:6px;padding:18px 16px;display:flex;flex-direction:column;}
 .su-tier.rec{border:1.5px solid var(--t4);box-shadow:var(--sh3);}

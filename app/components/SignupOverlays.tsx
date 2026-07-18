@@ -1,21 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
-import { useRouter } from "nextjs-toploader/app";
 import { api, ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
+import { TIERS } from "../../lib/contracts";
 import { purchaseOrUpgradeTier, MembershipFlowError } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
-
-function setSignupTierButtonsState(tierName: string | null, label?: string) {
-  document.querySelectorAll<HTMLButtonElement>(".su-tier-btn").forEach((btn) => {
-    const nameEl = btn.closest(".su-tier")?.querySelector(".su-tier-name");
-    const isActive = tierName !== null && nameEl?.textContent === tierName;
-    btn.disabled = tierName !== null;
-    if (isActive && label) btn.textContent = label;
-  });
-}
 
 function setModalBodyLock(locked: boolean) {
   document.body.classList.toggle("modal-open", locked);
@@ -32,9 +23,29 @@ function closeMembershipFlow() {
 }
 
 function notifyError(title: string, error: unknown) {
-  const sub = error instanceof ApiError || error instanceof MembershipFlowError || error instanceof Error ? error.message : "Please try again.";
+  const sub = formatPurchaseError(error);
   window.showToast?.({ title, sub, link: "" });
 }
+
+function formatPurchaseError(error: unknown): string {
+  if (error instanceof ApiError || error instanceof MembershipFlowError) return error.message;
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("user rejected") || msg.includes("user denied") || msg.includes("rejected the request")) {
+      return "Transaction cancelled in your wallet.";
+    }
+    return error.message;
+  }
+  return "Please try again.";
+}
+
+type SignupPurchasePhase = "wallet" | "loading";
+
+type SignupPurchaseStatus =
+  | { state: "idle" }
+  | { state: "wallet" | "loading"; tier: string }
+  | { state: "success"; tier: string; message: string }
+  | { state: "error"; message: string };
 
 declare global {
   interface Window {
@@ -43,15 +54,12 @@ declare global {
     closeMembership?: () => void;
     reconnectWallet?: () => void;
     startSignupFx?: (canvas: HTMLCanvasElement | null) => void;
-    initSuTiers?: () => void;
     suGoto?: (n: number) => void;
-    suSelectTier?: (name: string) => void | Promise<void>;
     msCopyRef?: (btn: HTMLButtonElement) => void;
   }
 }
 
 export default function SignupOverlays() {
-  const router = useRouter();
   const { address, isConnected } = useAccount();
   const { connectWallet } = useConnectWallet();
 
@@ -61,6 +69,10 @@ export default function SignupOverlays() {
   const [connectBusy, setConnectBusy] = useState(false);
   const [awaitingSignature, setAwaitingSignature] = useState(false);
   const [registerBusy, setRegisterBusy] = useState(false);
+  const [pendingTier, setPendingTier] = useState<string | null>(null);
+  const [purchasePhase, setPurchasePhase] = useState<SignupPurchasePhase | null>(null);
+  const [purchaseStatus, setPurchaseStatus] = useState<SignupPurchaseStatus>({ state: "idle" });
+  const purchaseBusyRef = useRef(false);
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -88,7 +100,6 @@ export default function SignupOverlays() {
     script.src = `/assets/js/script-8.js?${Date.now()}`;
     script.async = true;
     script.onload = () => {
-      window.initSuTiers?.();
       const nativeClose = window.closeSignup;
       if (nativeClose) {
         window.closeSignup = () => {
@@ -98,29 +109,6 @@ export default function SignupOverlays() {
           }
         };
       }
-
-      // Replace the fake "instant success" tier handler with the real purchase flow.
-      window.suSelectTier = async (tierName: string) => {
-        setSignupTierButtonsState(tierName);
-        try {
-          const result = await purchaseOrUpgradeTier(tierName, "USDT", {
-            onAwaitingWallet: () => setSignupTierButtonsState(tierName, "Confirm in wallet"),
-            onWalletAccepted: () => setSignupTierButtonsState(tierName, "Loading..."),
-          });
-          closeSignupFlow();
-          window.showToast?.({
-            title: "Membership activated",
-            sub: `${result.tier} tier confirmed — welcome to your network.`,
-            link: "",
-          });
-          router.push("/network");
-        } catch (error) {
-          notifyError("Purchase failed", error);
-        } finally {
-          setSignupTierButtonsState(null);
-          window.initSuTiers?.();
-        }
-      };
     };
     document.body.appendChild(script);
 
@@ -133,10 +121,62 @@ export default function SignupOverlays() {
       script.remove();
       document.removeEventListener("keydown", onKeyDown);
     };
-    // currentUsername is read inside the closure via a stable pattern - re-registering
-    // the handler on change keeps it accurate without needing a ref indirection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUsername, router]);
+  }, []);
+
+  const handleSignupTierSelect = useCallback(
+    async (tierName: string) => {
+      if (purchaseBusyRef.current) return;
+      purchaseBusyRef.current = true;
+      setPendingTier(tierName);
+      setPurchasePhase(null);
+      setPurchaseStatus({ state: "loading", tier: tierName });
+
+      let succeeded = false;
+      try {
+        await ensureAuth();
+
+        const result = await purchaseOrUpgradeTier(tierName, "USDT", {
+          onAwaitingWallet: () => {
+            setPurchasePhase("wallet");
+            setPurchaseStatus({ state: "wallet", tier: tierName });
+          },
+          onWalletAccepted: () => {
+            setPurchasePhase("loading");
+            setPurchaseStatus({ state: "loading", tier: tierName });
+          },
+        });
+
+        succeeded = true;
+        setPurchaseStatus({
+          state: "success",
+          tier: result.tier,
+          message: `${result.tier} membership activated. Redirecting to your network...`,
+        });
+        closeSignupFlow();
+        window.setTimeout(() => {
+          window.location.assign("/network");
+        }, 700);
+      } catch (error) {
+        const message = formatPurchaseError(error);
+        setPurchaseStatus({ state: "error", message });
+        notifyError("Purchase failed", error);
+      } finally {
+        purchaseBusyRef.current = false;
+        if (!succeeded) {
+          setPendingTier(null);
+          setPurchasePhase(null);
+        }
+      }
+    },
+    []
+  );
+
+  const signupTierButtonLabel = (tierName: string) => {
+    if (pendingTier !== tierName) return "Select";
+    if (purchasePhase === "loading") return "Loading...";
+    if (purchasePhase === "wallet") return "Confirm in wallet";
+    return "Select";
+  };
 
   const handleConnectWallet = async () => {
     if (connectBusy) return;
@@ -166,6 +206,7 @@ export default function SignupOverlays() {
           return;
         }
         // Registered but hasn't purchased a tier yet - skip straight to tier selection.
+        setPurchaseStatus({ state: "idle" });
         window.suGoto?.(3);
       } catch (error) {
         if (error instanceof ApiError && error.statusCode === 404) {
@@ -207,6 +248,7 @@ export default function SignupOverlays() {
         sponsorUsername: sponsorUsername || undefined,
       });
       setCurrentUsername(username);
+      setPurchaseStatus({ state: "idle" });
       window.suGoto?.(3);
     } catch (error) {
       notifyError("Registration failed", error);
@@ -379,7 +421,103 @@ export default function SignupOverlays() {
                 Choose a Membership tier that aligns with your capital deployment requirements and network expansion
                 objectives. All tiers include full terminal access.
               </div>
-              <div className="su-tiers" id="suTiers" />
+              {purchaseStatus.state !== "idle" && (
+                <div
+                  className={`su-purchase-status${
+                    purchaseStatus.state === "error"
+                      ? " is-error"
+                      : purchaseStatus.state === "success"
+                      ? " is-success"
+                      : ""
+                  }`}
+                  role="status"
+                >
+                  {purchaseStatus.state === "wallet" &&
+                    `Confirm the ${purchaseStatus.tier} membership transaction in your wallet.`}
+                  {purchaseStatus.state === "loading" &&
+                    `Processing your ${purchaseStatus.tier} membership purchase...`}
+                  {purchaseStatus.state === "success" && purchaseStatus.message}
+                  {purchaseStatus.state === "error" && purchaseStatus.message}
+                </div>
+              )}
+              <div className="su-tiers" id="suTiers">
+                {TIERS.map((tier, idx) => {
+                  const isRecommended = tier.name === "Gold";
+                  const tierNo = `Tier ${String(idx + 1).padStart(2, "0")}`;
+                  return (
+                    <div key={tier.name} className={`su-tier${isRecommended ? " rec" : ""}`}>
+                      {isRecommended && <div className="su-tier-ribbon">Recommended</div>}
+                      <div className="su-tier-no">{tierNo}</div>
+                      <div className="su-tier-name">{tier.name}</div>
+                      <div className="su-tier-price">
+                        <span className="cur">$</span>
+                        <span className="amt">{tier.priceUsd.toLocaleString()}</span>
+                      </div>
+                      <div className="su-tier-feats">
+                        <div className="su-feat">
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <path
+                              d="M2 11l3-3 2.5 1.5L11 5l3-2"
+                              stroke="currentColor"
+                              strokeWidth="1.3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <div>
+                            <div className="su-feat-t">Unilevel Unlock</div>
+                            <div className="su-feat-s">{tier.levels} Levels</div>
+                          </div>
+                        </div>
+                        <div className="su-feat">
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <rect x="2.5" y="5" width="11" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.3" />
+                            <path d="M5 5V4a3 3 0 0 1 6 0v1" stroke="currentColor" strokeWidth="1.3" />
+                          </svg>
+                          <div>
+                            <div className="su-feat-t">Strategy Pools</div>
+                            <div className="su-feat-s">All Strategy Pools</div>
+                          </div>
+                        </div>
+                        <div className="su-feat">
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
+                            <path d="M8 5v3l2 1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                          </svg>
+                          <div>
+                            <div className="su-feat-t">Max Deposit</div>
+                            <div className="su-feat-s">{tier.maxDeposit} Max Deposit</div>
+                          </div>
+                        </div>
+                        {tier.name === "Diamond" && (
+                          <div className="su-feat">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                              <path
+                                d="M3 8l3.5 3.5L13 5"
+                                stroke="currentColor"
+                                strokeWidth="1.3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            <div>
+                              <div className="su-feat-t">OTC Desk & NFT Lending</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="su-tier-btn"
+                        disabled={!!pendingTier}
+                        onClick={() => handleSignupTierSelect(tier.name)}
+                      >
+                        {signupTierButtonLabel(tier.name)}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div className="su-foot" style={{ padding: "16px 30px" }}>
               <button

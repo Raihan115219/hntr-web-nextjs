@@ -21,7 +21,6 @@ function initSuTiers(){
       '<button class="su-tier-btn" onclick="suSelectTier(\''+t.name+'\')">Select</button></div>';
   }).join('');
 }
-initSuTiers();
 function openSignup(){suGoto(1);document.getElementById('signupOverlay').classList.add('open');}
 function closeSignup(){document.getElementById('signupOverlay').classList.remove('open');}
 function suGoto(n){
