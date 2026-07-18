@@ -11,7 +11,7 @@ import SignupCard from "./SignupCard";
 import NotificationSystem from "./NotificationSystem";
 import DepositModal from "./DepositModal";
 import { ApiError, clearStoredAuth } from "../../lib/api";
-import { useDashboardData, useClaimCommissions } from "../../lib/rewards";
+import { useDashboardData, useClaimCommissions, usePointsSummary } from "../../lib/rewards";
 import type { StandardToastData } from "../../lib/notification-data";
 
 const MOBILE_MQ = "(max-width: 900px)";
@@ -99,6 +99,7 @@ export default function MainLayout({
   const { data: balanceData } = useBalance({ address, query: { enabled: !!address } });
   const WALLET_ADDRESS = shortenAddress(address);
   const { summary, refetchSummary } = useDashboardData();
+  const { data: pointsSummary } = usePointsSummary();
   const claimCommissions = useClaimCommissions();
   const [claimBusy, setClaimBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
@@ -517,12 +518,14 @@ export default function MainLayout({
               <div className="rsb">
                 <div className="rsbl" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   HNTR Points
-                  <span className="info-i" data-tip="HNTR POINTS COMING SOON">
+                  <span className="info-i" data-tip="250 points per $1 spent on membership, 10 points per $1 commission earned.">
                     i
                   </span>
                 </div>
-                <div className="rsbv">{maskBalance("0")}</div>
-                <div className="rsbg">— Lifetime</div>
+                <div className="rsbv">
+                  {maskBalance((pointsSummary?.hntrPoints ?? 0).toLocaleString())}
+                </div>
+                <div className="rsbg">Lifetime</div>
               </div>
             </div>
           </div>

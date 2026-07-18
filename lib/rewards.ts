@@ -2,8 +2,11 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
+import { writeContract, waitForTransactionReceipt } from "wagmi/actions";
 import { api } from "./api";
 import { ensureAuth } from "./auth";
+import { config } from "./wagmi";
+import { hntrMembershipAbi, CONTRACT_ADDRESS } from "./contracts";
 
 export interface RankProgress {
   percent: number;
@@ -86,8 +89,23 @@ export interface LeadershipPayout {
   createdAt: string;
 }
 
+export interface PointsLedgerEntry {
+  _id: string;
+  walletAddress: string;
+  amount: number;
+  source: "MEMBERSHIP_PURCHASE" | "MEMBERSHIP_UPGRADE" | "COMMISSION_EARNED" | "POOL_DEPOSIT";
+  usdValue: number;
+  txHash?: string;
+  timestamp: string;
+}
+
+export interface PointsSummary {
+  hntrPoints: number;
+  ledger: PointsLedgerEntry[];
+}
+
 export interface TransactionEntry {
-  type: "CommissionEarned" | "CommissionWithdrawn" | "MembershipPurchased" | "MembershipUpgraded" | "COMMISSION_EARNED" | "COMMISSION_WITHDRAWN" | "COMMISSION_CLAIM" | "PURCHASE" | "UPGRADE";
+  type: "CommissionEarned" | "CommissionWithdrawn" | "MembershipPurchased" | "MembershipUpgraded" | "COMMISSION_EARNED" | "COMMISSION_WITHDRAWN" | "COMMISSION_CLAIM" | "PURCHASE" | "UPGRADE" | "COMPANY_WALLET_WITHDRAWN";
   txHash?: string;
   blockNumber: number;
   timestamp: string | null;
@@ -156,6 +174,18 @@ export function useLeadershipPayouts() {
   });
 }
 
+export function usePointsSummary() {
+  const { address, isConnected } = useAccount();
+
+  return useQuery({
+    queryKey: ["points-summary", address],
+    queryFn: () => api.get<PointsSummary>(`/api/network/${address}/points`),
+    enabled: isConnected && !!address,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+}
+
 /** Real downline tree (up to `depth` levels) for the Topology Matrix Mapping visualization. */
 export function useNetworkTree(username: string | null | undefined, depth = 3) {
   return useQuery({
@@ -175,10 +205,20 @@ export function formatTokenAmount(value: string | null | undefined): string {
   return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export interface PreparedCommissionClaim {
+  operation: "COMMISSION_CLAIM";
+  walletAddress: string;
+  tokenAddress: string;
+  contractAddress: `0x${string}`;
+  pendingTransactionId: string;
+  status: "PENDING";
+}
+
 /**
- * Claims every token the user currently has a withdrawable balance in (the
- * contract only supports withdrawing one token per call). Skips tokens with
- * a zero balance so we never waste burner gas on a no-op transaction.
+ * Claims every token the user currently has a withdrawable balance in. The user
+ * now signs and submits `withdrawCommissions()` directly from their own wallet
+ * (the contract requires msg.sender == user). The backend only prepares the call
+ * and tracks it via the blockchain listener.
  */
 export function useClaimCommissions() {
   const queryClient = useQueryClient();
@@ -193,8 +233,21 @@ export function useClaimCommissions() {
     await ensureAuth();
     const results: { symbol: string; txHash: string }[] = [];
     for (const token of toClaim) {
-      const result = await api.post<{ txHash: string }>("/api/network/claim", { token: token.address }, { auth: true });
-      results.push({ symbol: token.symbol, txHash: result.txHash });
+      const prepared = await api.post<PreparedCommissionClaim>(
+        "/api/network/claim",
+        { token: token.address },
+        { auth: true },
+      );
+
+      const txHash = await writeContract(config, {
+        address: prepared.contractAddress,
+        abi: hntrMembershipAbi,
+        functionName: "withdrawCommissions",
+        args: [prepared.walletAddress as `0x${string}`, prepared.tokenAddress as `0x${string}`],
+      });
+      await waitForTransactionReceipt(config, { hash: txHash });
+
+      results.push({ symbol: token.symbol, txHash });
     }
 
     await queryClient.invalidateQueries({ queryKey: ["rewards-summary", address] });

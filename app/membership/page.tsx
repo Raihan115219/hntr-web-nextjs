@@ -8,6 +8,7 @@ import { ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
 import { purchaseOrUpgradeTier, MembershipFlowError } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
+import { COMMISSION_LEVELS, TIERS } from "../../lib/contracts";
 
 declare global {
   interface Window {
@@ -115,199 +116,100 @@ export default function MembershipPage() {
             <div className="hero-content">
               <div className="hero-title">Membership Packages</div>
               <div className="hero-sub">
-                Select a tier to unlock all platform strategies features and network commissions.
+                Select a tier to unlock platform features. Deeper unilevel commissions also require the matching network rank.
               </div>
             </div>
           </div>
 
           {/* TIER CARDS */}
           <div className="tiers-grid">
-            {/* SCOUT */}
-            <div className="tier-card">
-              <div className="tier-label">Tier 01</div>
-              <div className="tier-name">Scout</div>
-              <div className="tier-price">
-                $50<span className="tier-price-unit">USD</span>
-              </div>
-              <div className="tier-divider"></div>
-              <div className="tier-features">
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">3 Unilevel Levels</span>
+            {TIERS.map((tier, idx) => {
+              const isRecommended = tier.name === "Gold";
+              const defaultLabel = isRecommended ? "PURCHASE" : "SELECT";
+              const hasExtra = tier.name === "Diamond";
+              return (
+                <div className={`tier-card${isRecommended ? " recommended" : ""}`} key={tier.name}>
+                  {isRecommended && <div className="recommended-badge">RECOMMENDED</div>}
+                  <div className="tier-label">Tier 0{idx + 1}</div>
+                  <div className="tier-name">{tier.name}</div>
+                  <div className="tier-price">
+                    ${tier.priceUsd.toLocaleString()}
+                    <span className="tier-price-unit">USD</span>
+                  </div>
+                  <div className="tier-divider"></div>
+                  <div className="tier-features">
+                    <div className="tier-feature">
+                      <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <circle cx="6" cy="6" r="4.5" stroke={isRecommended ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
+                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isRecommended ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                      </svg>
+                      <span className="tier-feature-text">{tier.levels} Unilevel Levels</span>
+                    </div>
+                    <div className="tier-feature">
+                      <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <circle cx="6" cy="6" r="4.5" stroke={isRecommended ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
+                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isRecommended ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                      </svg>
+                      <span className="tier-feature-text">All Strategy Pools</span>
+                    </div>
+                    <div className="tier-feature">
+                      <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <circle cx="6" cy="6" r="4.5" stroke={isRecommended ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
+                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isRecommended ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                      </svg>
+                      <span className="tier-feature-text">{tier.maxDeposit} Max Deposit</span>
+                    </div>
+                    {hasExtra && (
+                      <div className="tier-feature">
+                        <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
+                          <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                        </svg>
+                        <span className="tier-feature-text">OTC Desk & NFT Lending</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className={`tier-btn${isRecommended ? " purchase" : ""}`}
+                    onClick={() => selectTier(tier.name)}
+                    disabled={!!pendingTier}
+                  >
+                    {tierButtonLabel(tier.name, defaultLabel)}
+                  </button>
                 </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">All Strategy Pools</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">$400 Max Deposit</span>
-                </div>
-              </div>
-              <button className="tier-btn" onClick={() => selectTier("Scout")} disabled={!!pendingTier}>
-                {tierButtonLabel("Scout", "SELECT")}
-              </button>
-            </div>
+              );
+            })}
+          </div>
 
-            {/* TRACKER */}
-            <div className="tier-card">
-              <div className="tier-label">Tier 02</div>
-              <div className="tier-name">Tracker</div>
-              <div className="tier-price">
-                $250<span className="tier-price-unit">USD</span>
+          {/* COMMISSION STRUCTURE */}
+          <div className="comparison">
+            <div className="cmp-hdr">
+              <div className="cmp-title">Commission Structure</div>
+              <div className="cmp-sub">
+                Each downline level pays the listed rate. Levels 4–12 require both the membership tier and the network rank.
               </div>
-              <div className="tier-divider"></div>
-              <div className="tier-features">
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">6 Unilevel Levels</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">All Strategy Pools</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">$1,500 Max Deposit</span>
-                </div>
-              </div>
-              <button className="tier-btn" onClick={() => selectTier("Tracker")} disabled={!!pendingTier}>
-                {tierButtonLabel("Tracker", "SELECT")}
-              </button>
             </div>
-
-            {/* RANGER - RECOMMENDED */}
-            <div className="tier-card recommended">
-              <div className="recommended-badge">RECOMMENDED</div>
-              <div className="tier-label">Tier 03</div>
-              <div className="tier-name">Ranger</div>
-              <div className="tier-price">
-                $750<span className="tier-price-unit">USD</span>
-              </div>
-              <div className="tier-divider"></div>
-              <div className="tier-features">
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="rgba(242,239,234,.7)" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="rgba(242,239,234,.9)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">9 Unilevel Levels</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="rgba(242,239,234,.7)" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="rgba(242,239,234,.9)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">All Strategy Pools</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="rgba(242,239,234,.7)" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="rgba(242,239,234,.9)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">$4,000 Max Deposit</span>
-                </div>
-              </div>
-              <button className="tier-btn purchase" onClick={() => selectTier("Ranger")} disabled={!!pendingTier}>
-                {tierButtonLabel("Ranger", "PURCHASE")}
-              </button>
-            </div>
-
-            {/* HUNTER */}
-            <div className="tier-card">
-              <div className="tier-label">Tier 04</div>
-              <div className="tier-name">Hunter</div>
-              <div className="tier-price">
-                $1,500<span className="tier-price-unit">USD</span>
-              </div>
-              <div className="tier-divider"></div>
-              <div className="tier-features">
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">12 Unilevel Levels</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">All Strategy Pools</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">$8,000 Max Deposit</span>
-                </div>
-              </div>
-              <button className="tier-btn" onClick={() => selectTier("Hunter")} disabled={!!pendingTier}>
-                {tierButtonLabel("Hunter", "SELECT")}
-              </button>
-            </div>
-
-            {/* APEX */}
-            <div className="tier-card">
-              <div className="tier-label">Tier 05</div>
-              <div className="tier-name">Apex</div>
-              <div className="tier-price">
-                $2,500<span className="tier-price-unit">USD</span>
-              </div>
-              <div className="tier-divider"></div>
-              <div className="tier-features">
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">12 Unilevel Levels</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">All Strategy Pools</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">$25,000 Max Deposit</span>
-                </div>
-                <div className="tier-feature">
-                  <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"></circle>
-                    <path d="M3.5 6l1.5 1.5L8.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
-                  <span className="tier-feature-text">OTC Desk & NFT Lending</span>
-                </div>
-              </div>
-              <button className="tier-btn" onClick={() => selectTier("Apex")} disabled={!!pendingTier}>
-                {tierButtonLabel("Apex", "SELECT")}
-              </button>
+            <div className="table-scroll">
+              <table className="cmp-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "12%" }}>Level</th>
+                    <th style={{ width: "18%" }}>Commission %</th>
+                    <th style={{ width: "35%" }}>Required Membership</th>
+                    <th style={{ width: "35%" }}>Required Rank</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMMISSION_LEVELS.map((row, idx) => (
+                    <tr key={row.level} className={idx % 2 === 0 ? "highlight-row" : ""}>
+                      <td>{row.level}</td>
+                      <td>{row.percent}%</td>
+                      <td>{row.requiredMembership}</td>
+                      <td>{row.requiredRank}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -319,63 +221,55 @@ export default function MembershipPage() {
             </div>
             <div className="table-scroll">
               <table className="cmp-table">
-              <thead>
-                <tr>
-                  <th style={{ width: "28%" }}>Feature</th>
-                  <th>Scout</th>
-                  <th>Tracker</th>
-                  <th className="current-tier-col" style={{ position: "relative" }}>
-                    Ranger
-                  </th>
-                  <th>Hunter</th>
-                  <th className="apex-col">Apex</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="highlight-row">
-                  <td>Unilevel Levels</td>
-                  <td>3 Levels</td>
-                  <td>6 Levels</td>
-                  <td>9 Levels</td>
-                  <td>12 Levels</td>
-                  <td className="apex-col">12 Levels</td>
-                </tr>
-                <tr>
-                  <td>Strategy Pool Access</td>
-                  <td>All Pools</td>
-                  <td>All Pools</td>
-                  <td>All Pools</td>
-                  <td>All Pools</td>
-                  <td className="apex-col">All Pools</td>
-                </tr>
-                <tr className="highlight-row">
-                  <td>Max Strategy Deposit</td>
-                  <td>$400</td>
-                  <td>$1,500</td>
-                  <td>$4,000</td>
-                  <td>$10,000</td>
-                  <td className="apex-col">$25,000</td>
-                </tr>
-                <tr>
-                  <td>Tailor OTC Desk & NFT Lending Platform</td>
-                  <td>
-                    <span className="cross">✕</span>
-                  </td>
-                  <td>
-                    <span className="cross">✕</span>
-                  </td>
-                  <td>
-                    <span className="cross">✕</span>
-                  </td>
-                  <td>
-                    <span className="check">✓</span>
-                  </td>
-                  <td className="apex-col">
-                    <span className="check">✓</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                <thead>
+                  <tr>
+                    <th style={{ width: "28%" }}>Feature</th>
+                    {TIERS.map((tier) => (
+                      <th key={tier.name} className={tier.name === "Diamond" ? "apex-col" : ""}>
+                        {tier.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="highlight-row">
+                    <td>Unilevel Levels</td>
+                    {TIERS.map((tier) => (
+                      <td key={tier.name} className={tier.name === "Diamond" ? "apex-col" : ""}>
+                        {tier.levels} Levels
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td>Strategy Pool Access</td>
+                    {TIERS.map((tier) => (
+                      <td key={tier.name} className={tier.name === "Diamond" ? "apex-col" : ""}>
+                        All Pools
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="highlight-row">
+                    <td>Max Strategy Deposit</td>
+                    {TIERS.map((tier) => (
+                      <td key={tier.name} className={tier.name === "Diamond" ? "apex-col" : ""}>
+                        {tier.maxDeposit}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td>Tailor OTC Desk & NFT Lending Platform</td>
+                    {TIERS.map((tier) => (
+                      <td key={tier.name} className={tier.name === "Diamond" ? "apex-col" : ""}>
+                        {tier.name === "Diamond" || tier.name === "Platinum" ? (
+                          <span className="check">✓</span>
+                        ) : (
+                          <span className="cross">✕</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 

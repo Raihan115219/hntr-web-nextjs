@@ -241,7 +241,7 @@ function drawNetworkTree() {
   const e2val  = cs.getPropertyValue('--e2').trim()     || '#ffffff';
 
   // ── synthetic user identity helpers ──
-  const memTiers=['Scout','Tracker','Ranger','Hunter','Apex'];
+  const memTiers=['Bronze','Silver','Gold','Platinum','Diamond'];
   const unames=['Alpha','Nova','Byte','Orion','Vega','Lynx','Echo','Zephyr','Quill','Rune','Sable','Onyx','Cipher','Delta','Flux','Grove','Halo','Iris','Koda','Wren'];
   function mkHex(s){let h=(Math.imul(s^0x9e3779b1,2654435761))>>>0;return h.toString(16).toUpperCase().padStart(6,'0');}
   function mkAddr(s){const a=mkHex(s*7+11);return '0x'+a.slice(0,3)+'...'+a.slice(3,4);}
@@ -260,7 +260,7 @@ function drawNetworkTree() {
   const l1Labels = ['0x71C...492','0x3A8...12D','0x9FE...88A'];
   const l1Subs   = ['$4.2K','$1.8K','$9.2K'];
   const l1Users  = ['AlphaHunter','NovaScout','ByteRanger'];
-  const l1Mem    = ['Apex','Hunter','Ranger'];
+  const l1Mem    = ['Diamond','Platinum','Gold'];
   for (let i=0;i<3;i++) {
     nodes.push({id:1+i, x:l1Xs[i], y:138, level:1, label:l1Labels[i], sub:l1Subs[i], user:l1Users[i], addr:l1Labels[i], mem:l1Mem[i]});
     edges.push([0, 1+i]);
@@ -736,8 +736,8 @@ var SEARCH_INDEX = [
   {name:'Pudgy Penguins',sub:'NFT Collection',icon:'&#128039;',page:'vault'},
   {name:'BAYC Pool #3362',sub:'Active pool 48.6% funded',icon:'&#128230;',page:'pools'},
   {name:'Pudgy Pool #3363',sub:'Active pool 62% funded',icon:'&#128230;',page:'pools'},
-  {name:'Ranger Membership',sub:'Tier 03 $750',icon:'&#128179;',page:'membership'},
-  {name:'Hunter Membership',sub:'Tier 04 $1500',icon:'&#128179;',page:'membership'},
+  {name:'Gold Membership',sub:'Tier 03 $750',icon:'&#128179;',page:'membership'},
+  {name:'Platinum Membership',sub:'Tier 04 $1500',icon:'&#128179;',page:'membership'},
   {name:'Network Commissions',sub:'Active rewards',icon:'&#128176;',page:'network'},
 ];
 var QUICK_NAV = [

@@ -36,6 +36,7 @@ const TX_TYPE_LABEL: Record<TransactionEntry["type"], string> = {
   MembershipUpgraded: "Membership Upgrade",
   UPGRADE: "Membership Upgrade",
   COMMISSION_CLAIM: "Commission Claimed",
+  COMPANY_WALLET_WITHDRAWN: "Company Wallet Withdrawal",
 };
 
 function formatTxDate(iso: string | null) {
@@ -63,6 +64,7 @@ function getTxTypeCategory(type: TransactionEntry["type"]) {
     case "CommissionWithdrawn":
     case "COMMISSION_WITHDRAWN":
     case "COMMISSION_CLAIM":
+    case "COMPANY_WALLET_WITHDRAWN":
       return "claimed";
     case "MembershipPurchased":
     case "PURCHASE":
@@ -73,6 +75,11 @@ function getTxTypeCategory(type: TransactionEntry["type"]) {
     default:
       return "other";
   }
+}
+
+function formatTxHash(txHash: string | undefined) {
+  if (!txHash) return "—";
+  return `${txHash.slice(0, 6)}...${txHash.slice(-4)}`;
 }
 
 const TX_TYPE_FILTER_OPTIONS = [
@@ -792,12 +799,13 @@ export default function NetworkPage() {
                     <th>Source</th>
                     <th style={{ textAlign: "right" }}>Amount</th>
                     <th style={{ textAlign: "center" }}>Status</th>
+                    <th>Tx Hash</th>
                   </tr>
                 </thead>
                 <tbody id="txhTable">
                   {paginatedTransactions.length === 0 && (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: "center", color: "var(--t2)", padding: "24px 0" }}>
+                      <td colSpan={6} style={{ textAlign: "center", color: "var(--t2)", padding: "24px 0" }}>
                         {transactions.length === 0 ? "No on-chain activity yet." : "No transactions match your filters."}
                       </td>
                     </tr>
@@ -829,6 +837,20 @@ export default function NetworkPage() {
                         </td>
                         <td style={{ textAlign: "center" }}>
                           <span className={`txh-status ${statusClass}`}>{statusLabel}</span>
+                        </td>
+                        <td>
+                          {tx.txHash ? (
+                            <a
+                              href={`https://sepolia.etherscan.io/tx/${tx.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontFamily: "monospace", color: "var(--t4)" }}
+                            >
+                              {formatTxHash(tx.txHash)}
+                            </a>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                       </tr>
                     );

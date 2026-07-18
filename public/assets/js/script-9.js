@@ -9,7 +9,7 @@
     {t:'My Portfolio',q:'How is my portfolio doing?',
      a:"Your positions, APR and realized profit live on the <b>Home</b> and <b>My NFTs</b> pages. Want me to summarize your current holdings?"},
     {t:'Membership & Tiers',q:'What do membership tiers unlock?',
-     a:"Tiers from <b>Ranger</b> to <b>Elite</b> raise your pool deposit caps, unlock deeper unilevel rewards and lower your fees. Compare them on the Membership page."},
+     a:"Tiers from <b>Gold</b> to <b>Hunter</b> raise your pool deposit caps, unlock deeper unilevel rewards and lower your fees. Compare them on the Membership page."},
     {t:'Network & Referrals',q:'How do referral rewards work?',
      a:"Share your referral link to earn unilevel commissions across your network. The <b>Network</b> page shows your tree, ranks and claimable rewards."},
     {t:'Support',q:'I need help with my account.',

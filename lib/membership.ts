@@ -1,10 +1,17 @@
 "use client";
 
-import { getAccount, writeContract, waitForTransactionReceipt } from "wagmi/actions";
+import {
+  getAccount,
+  writeContract,
+  waitForTransactionReceipt,
+  simulateContract,
+  getPublicClient,
+} from "wagmi/actions";
 import { config } from "./wagmi";
-import { erc20Abi, TOKEN_ADDRESSES } from "./contracts";
+import { erc20Abi, hntrMembershipAbi, TOKEN_ADDRESSES } from "./contracts";
 import { api } from "./api";
 import { ensureAuth } from "./auth";
+import { getAddress } from "viem";
 
 export class MembershipFlowError extends Error {
   code: string;
@@ -49,14 +56,30 @@ export type PurchaseProgressHandlers = {
   onWalletAccepted?: () => void;
 };
 
+export interface PreparedMembershipTx {
+  operation: "PURCHASE" | "UPGRADE";
+  walletAddress: string;
+  tierIndex: number;
+  uplines: string[];
+  ranks: number[];
+  tokenAddress: string;
+  tokenSymbol: string;
+  amountDueRaw: string;
+  contractAddress: `0x${string}`;
+  deadline: number;
+  signature: `0x${string}`;
+  pendingTransactionId: string;
+  status: "PENDING";
+}
+
 /**
  * Full purchase/upgrade flow:
  *  1. Ensure the wallet is connected and authenticated with the backend.
  *  2. Fetch a live quote (price + whether an ERC20 approval is still needed).
- *  3. If needed, prompt the user's own wallet to `approve()` the membership
- *     contract (the one on-chain step the user pays gas for themselves).
- *  4. Ask the backend to relay the actual purchaseMembership/upgradeMembership
- *     call through the burner wallet.
+ *  3. If needed, prompt the user's own wallet to `approve()` the membership contract.
+ *  4. Ask the backend to prepare signed uplines + ranks (commission auth).
+ *  5. Prompt the user's own wallet to call `purchaseMembership`/`upgradeMembership`
+ *     directly on the contract (the user pays the gas).
  */
 export async function purchaseOrUpgradeTier(
   tierName: string,
@@ -92,18 +115,92 @@ export async function purchaseOrUpgradeTier(
     progress?.onWalletAccepted?.();
   }
 
+  // Fetch the signed auth as late as possible (after any approve), so the
+  // deadline still has headroom when the wallet opens the purchase prompt.
   const endpoint = quote.isUpgrade ? "/api/membership/upgrade" : "/api/membership/purchase";
-  const result = await api.post<{ txHash: string }>(endpoint, { tier: tierName, token: tokenSymbol }, { auth: true });
+  const prepared = await api.post<PreparedMembershipTx>(
+    endpoint,
+    { tier: tierName, token: tokenSymbol },
+    { auth: true },
+  );
 
-  if (!result.txHash) {
+  if (
+    !prepared.signature ||
+    !prepared.deadline ||
+    !Array.isArray(prepared.uplines) ||
+    !Array.isArray(prepared.ranks) ||
+    prepared.uplines.length !== prepared.ranks.length
+  ) {
     throw new MembershipFlowError(
-      "PURCHASE_FAILED",
-      "Membership purchase could not be completed. Please try again.",
+      "INVALID_PREPARED_TX",
+      "Backend returned an incomplete membership authorization. Please try again.",
     );
   }
 
+  const functionName = prepared.operation === "UPGRADE" ? "upgradeMembership" : "purchaseMembership";
+  const contractAddress = getAddress(prepared.contractAddress);
+  const args = [
+    getAddress(prepared.walletAddress),
+    prepared.tierIndex,
+    prepared.uplines.map((u) => getAddress(u)),
+    prepared.ranks.map((r) => Number(r)),
+    getAddress(prepared.tokenAddress),
+    BigInt(prepared.deadline),
+    prepared.signature as `0x${string}`,
+  ] as const;
+
+  // Simulate first so we surface "Signature expired" / "Invalid signature"
+  // instead of MetaMask's opaque "gas limit too high" fallback.
+  try {
+    await simulateContract(config, {
+      address: contractAddress,
+      abi: hntrMembershipAbi,
+      functionName,
+      args: [...args],
+      account: account.address,
+    });
+  } catch (err: any) {
+    const reason =
+      err?.shortMessage ||
+      err?.cause?.reason ||
+      err?.cause?.shortMessage ||
+      err?.message ||
+      "Membership transaction would revert.";
+    throw new MembershipFlowError("SIMULATION_FAILED", reason);
+  }
+
+  let gas: bigint | undefined;
+  try {
+    const publicClient = getPublicClient(config);
+    if (publicClient) {
+      const estimated = await publicClient.estimateContractGas({
+        address: contractAddress,
+        abi: hntrMembershipAbi,
+        functionName,
+        args: [...args],
+        account: account.address,
+      });
+      // Modest buffer — avoid MetaMask substituting the full block gas limit.
+      gas = (estimated * BigInt(130)) / BigInt(100);
+    }
+  } catch {
+    // Simulation already passed; fall through and let the wallet estimate.
+    gas = undefined;
+  }
+
+  progress?.onAwaitingWallet?.();
+  const txHash = await writeContract(config, {
+    address: contractAddress,
+    abi: hntrMembershipAbi,
+    functionName,
+    args: [...args],
+    ...(gas !== undefined ? { gas } : {}),
+  });
+  progress?.onWalletAccepted?.();
+  await waitForTransactionReceipt(config, { hash: txHash });
+
   return {
-    txHash: result.txHash,
+    txHash,
     tier: tierName,
     isUpgrade: quote.isUpgrade,
     amountLabel: `${quote.amountDueFormatted} ${quote.tokenSymbol}`,
@@ -111,11 +208,11 @@ export async function purchaseOrUpgradeTier(
 }
 
 const TIER_COPY: Record<string, { uni: string; pool: string }> = {
-  Scout: { uni: "3 Levels", pool: "All Strategy Pools" },
-  Tracker: { uni: "6 Levels", pool: "All Strategy Pools" },
-  Ranger: { uni: "9 Levels", pool: "All Strategy Pools" },
-  Hunter: { uni: "12 Levels", pool: "All Strategy Pools" },
-  Apex: { uni: "12 Levels", pool: "All Strategy Pools" },
+  Bronze: { uni: "4 Levels", pool: "All Strategy Pools" },
+  Silver: { uni: "6 Levels", pool: "All Strategy Pools" },
+  Gold: { uni: "10 Levels", pool: "All Strategy Pools" },
+  Platinum: { uni: "12 Levels", pool: "All Strategy Pools" },
+  Diamond: { uni: "12 Levels", pool: "All Strategy Pools" },
 };
 
 /**
