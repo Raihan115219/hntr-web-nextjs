@@ -156,6 +156,36 @@ export function useTransactionHistory(limit = 10) {
   });
 }
 
+export interface PoolWalletTokenBalance {
+  symbol: "USDT" | "USDC" | string;
+  address: string;
+  balance: number;
+}
+
+export interface PoolWalletBalances {
+  walletAddress: string;
+  tokens: PoolWalletTokenBalance[];
+  totalUSD: number;
+}
+
+export interface LeadershipStatus {
+  walletAddress: string;
+  username: string | null;
+  rank: string;
+  shares: number;
+  hasShares: boolean;
+  totalShares: number;
+  eligibleUserCount: number;
+  poolBalanceUSD: number;
+  walletBalances: PoolWalletBalances;
+  estimatedPayoutUSD: number;
+  lifetimePaidUSD: number;
+  shareWeights: Record<string, number>;
+  message: string;
+  lastPayout: LeadershipPayout | null;
+  payouts: LeadershipPayout[];
+}
+
 /**
  * Leadership Bonus is auto-deposited straight to the user's wallet by the monthly
  * cron job (see hntr-backend/src/jobs/leadership-cron.ts) rather than accrued as a
@@ -171,6 +201,69 @@ export function useLeadershipPayouts() {
     enabled: isConnected && !!address,
     staleTime: 30_000,
     select: (data) => data.payouts,
+  });
+}
+
+/** Live share entitlement + pool estimate for the Leadership Bonus card. */
+export function useLeadershipStatus() {
+  const { address, isConnected } = useAccount();
+
+  return useQuery({
+    queryKey: ["leadership-status", address],
+    queryFn: () => api.get<LeadershipStatus>(`/api/network/${address}/leadership-status`),
+    enabled: isConnected && !!address,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export interface AchievementBonusEntry {
+  _id: string;
+  walletAddress: string;
+  username: string;
+  rank: string;
+  amountUSD: number;
+  status: "PENDING" | "PAID" | "FAILED";
+  token?: string;
+  tokenAddress?: string;
+  txHash?: string;
+  createdAt: string;
+  paidAt?: string;
+}
+
+export interface AchievementStatus {
+  walletAddress: string;
+  username: string | null;
+  rank: string;
+  bonusTable: Record<string, number>;
+  lifetimePaidUSD: number;
+  pendingUSD: number;
+  hasPending: boolean;
+  hasPaid: boolean;
+  message: string;
+  walletBalances: PoolWalletBalances;
+  poolBalanceUSD: number;
+  bonuses: AchievementBonusEntry[];
+  lastBonus: AchievementBonusEntry | null;
+}
+
+/** Formats pool wallet token balances for the Network reward cards. */
+export function formatPoolWalletBalances(balances?: PoolWalletBalances | null): string {
+  if (!balances?.tokens?.length) return "Pool: —";
+  const parts = balances.tokens.map((t) => `${t.balance.toFixed(2)} ${t.symbol}`);
+  return `Pool: ${parts.join(" · ")}`;
+}
+
+/** One-time rank achievement bonus status for the Network Rank Bonus card. */
+export function useAchievementStatus() {
+  const { address, isConnected } = useAccount();
+
+  return useQuery({
+    queryKey: ["achievement-status", address],
+    queryFn: () => api.get<AchievementStatus>(`/api/network/${address}/achievement-status`),
+    enabled: isConnected && !!address,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }
 

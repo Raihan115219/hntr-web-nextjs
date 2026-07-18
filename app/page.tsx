@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, ReactNode, useEffect, useLayoutEffect, useState, useRef } from "react";
+import { Fragment, ReactNode, useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Navigation, Pagination } from 'swiper/modules';
 import 'swiper/css';
@@ -11,6 +11,74 @@ import MainLayout from "./components/MainLayout";
 import { openDepositModal } from "../lib/deposit-modal";
 import { hasSeenIntro, markIntroSeen } from "../lib/intro-state";
 import { useRouter } from "nextjs-toploader/app";
+import {
+  formatChangePct,
+  formatUsd,
+  MarketTimeFrame,
+  useOpenSeaHomeMarket,
+  useOpenSeaListings,
+  useOpenSeaMarketplaceListings,
+  useOpenSeaMarketplaceSales,
+} from "@/lib/opensea";
+
+const STRATEGY_POOLS = [
+  {
+    slug: "boredapeyachtclub",
+    name: "Bored Ape Yacht Club",
+    img: "/assets/images/image-11.jpg",
+    tags: ["YUGA LABS", "SERIES 1/1000"],
+    fallbackTokenId: "3362",
+    fallbackTargetEth: 10,
+    raisedEth: 4.52,
+    progress: 45.2,
+    gpProfit: "10.00%",
+    ethProfit: "1.75",
+    usdtProfit: "$4,198",
+    users: "132",
+  },
+  {
+    slug: "pudgypenguins",
+    name: "Pudgy Penguins",
+    img: "/assets/images/image-6.jpg",
+    tags: ["PPENGUIN", "SERIES V/500"],
+    fallbackTokenId: "3362",
+    fallbackTargetEth: 5.45,
+    raisedEth: 2.73,
+    progress: 50.1,
+    gpProfit: "10.00%",
+    ethProfit: "1.75",
+    usdtProfit: "$4,198",
+    users: "132",
+  },
+  {
+    slug: "cryptopunks",
+    name: "CryptoPunks",
+    img: "/assets/images/image-3.jpg",
+    tags: ["LARVA LABS", "SERIES 1/10000"],
+    fallbackTokenId: "7804",
+    fallbackTargetEth: 31,
+    raisedEth: 22.3,
+    progress: 71.9,
+    gpProfit: "9.20%",
+    ethProfit: "2.10",
+    usdtProfit: "$5,040",
+    users: "88",
+  },
+  {
+    slug: "azuki",
+    name: "Azuki",
+    img: "/assets/images/image-7.jpg",
+    tags: ["AZUKI", "SERIES 2/8888"],
+    fallbackTokenId: "4521",
+    fallbackTargetEth: 8.5,
+    raisedEth: 6.12,
+    progress: 72.0,
+    gpProfit: "9.80%",
+    ethProfit: "1.92",
+    usdtProfit: "$4,220",
+    users: "104",
+  },
+] as const;
 
 /** Intro canvas + typewriter only on desktop / larger viewports */
 const INTRO_DESKTOP_MQ = "(min-width: 901px)";
@@ -76,26 +144,69 @@ function renderTypedSegments(segments: Segment[], count: number, keyBase: string
   });
 }
 
-const LISTING_CARDS = [
-  { img: "/assets/images/image-11.jpg", name: "BAYC #9112", bought: "5.75", sell: "7.15", profit: "+19.3%", soon: false },
-  { img: "/assets/images/image-6.jpg", name: "BAYC #9112", bought: "4.75", sell: "9.75", profit: "+18.8%", soon: false },
-  { img: "/assets/images/image-3.jpg", name: "BAYC #9112", bought: "4.1", sell: "7.9", profit: "+18.8%", soon: false },
-  { img: "/assets/images/image-7.jpg", name: "BAYC #5621", bought: "6.2", sell: "8.5", profit: "+15.4%", soon: false },
-  { img: "/assets/images/image-5.jpg", name: "BAYC #7832", bought: "3.8", sell: "6.2", profit: "+17.5%", soon: false },
-  { img: "/assets/images/image-8.jpg", name: "BAYC #4521", bought: "5.2", sell: "7.8", profit: "+16.2%", soon: false },
-  { img: "/assets/images/image-4.jpg", name: "COMING SOON", bought: "--", sell: "--", profit: "--", soon: true },
+const FALLBACK_LISTING_CARDS = [
+  { img: "/assets/images/image-11.jpg", name: "BAYC #9112", bought: "5.75", sell: "7.15", profit: "+19.3%", soon: false, openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-6.jpg", name: "BAYC #9112", bought: "4.75", sell: "9.75", profit: "+18.8%", soon: false, openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-3.jpg", name: "BAYC #9112", bought: "4.1", sell: "7.9", profit: "+18.8%", soon: false, openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-7.jpg", name: "BAYC #5621", bought: "6.2", sell: "8.5", profit: "+15.4%", soon: false, openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-5.jpg", name: "BAYC #7832", bought: "3.8", sell: "6.2", profit: "+17.5%", soon: false, openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-8.jpg", name: "BAYC #4521", bought: "5.2", sell: "7.8", profit: "+16.2%", soon: false, openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-4.jpg", name: "COMING SOON", bought: "--", sell: "--", profit: "--", soon: true, openseaUrl: "" },
 ];
 
-const SALES_CARDS = [
-  { img: "/assets/images/image-11.jpg", name: "Bored Ape YC #3425", bought: "7.50", sale: "8.25", profit: "+10%" },
-  { img: "/assets/images/image-6.jpg", name: "Bored Ape YC #7821", bought: "8.64", sale: "9.50", profit: "+9.9%" },
-  { img: "/assets/images/image-3.jpg", name: "CryptoPunks #5421", bought: "29.23", sale: "32.15", profit: "+10%" },
-  { img: "/assets/images/image-7.jpg", name: "Bored Ape YC #9321", bought: "7.09", sale: "7.80", profit: "+10%" },
-  { img: "/assets/images/image-5.jpg", name: "Azuki #1245", bought: "5.14", sale: "5.65", profit: "+9.9%" },
-  { img: "/assets/images/image-8.jpg", name: "Bored Ape YC #4523", bought: "8.09", sale: "8.90", profit: "+10%" },
-  { img: "/assets/images/image-4.jpg", name: "Doodles #2341", bought: "5.73", sale: "6.30", profit: "+9.9%" },
-  { img: "/assets/images/image-9.jpg", name: "Pudgy Penguins #6754", bought: "4.41", sale: "4.85", profit: "+10%" }
+const FALLBACK_SALES_CARDS = [
+  { img: "/assets/images/image-11.jpg", name: "Bored Ape YC #3425", bought: "7.50", sale: "8.25", profit: "+10%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-6.jpg", name: "Bored Ape YC #7821", bought: "8.64", sale: "9.50", profit: "+9.9%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-3.jpg", name: "CryptoPunks #5421", bought: "29.23", sale: "32.15", profit: "+10%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-7.jpg", name: "Bored Ape YC #9321", bought: "7.09", sale: "7.80", profit: "+10%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-5.jpg", name: "Azuki #1245", bought: "5.14", sale: "5.65", profit: "+9.9%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-8.jpg", name: "Bored Ape YC #4523", bought: "8.09", sale: "8.90", profit: "+10%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-4.jpg", name: "Doodles #2341", bought: "5.73", sale: "6.30", profit: "+9.9%", openseaUrl: "https://opensea.io" },
+  { img: "/assets/images/image-9.jpg", name: "Pudgy Penguins #6754", bought: "4.41", sale: "4.85", profit: "+10%", openseaUrl: "https://opensea.io" }
 ];
+
+const FALLBACK_MARKET = {
+  totalVolume: 42819,
+  activeCollections: 1204,
+  top: [
+    { name: "CryptoPunks", floorPrice: 30.19, change: 0.18, thumb: "🧱" },
+    { name: "Autoglyphs", floorPrice: 81.0, change: -8.88, thumb: "✒" },
+    { name: "Fidenza by Tyler Hobbs", floorPrice: 16.4, change: -0.38, thumb: "🎨" },
+    { name: "Bored Ape Yacht Club", floorPrice: 7.7994, change: 2.44, thumb: "🦧" },
+    { name: "Pudgy Penguins", floorPrice: 4.3499, change: 6.38, thumb: "🐧" },
+  ],
+  trending: [
+    { name: "Nakamigos", floorPrice: 0.1358, volume: 4881, thumb: "🍜" },
+    { name: "NORMIES", floorPrice: 0.0544, volume: 77317, thumb: "🐻" },
+    { name: "Kaito Genesis", floorPrice: 1.3589, volume: 34152, thumb: "⚡" },
+    { name: "Lil Pudgys", floorPrice: 0.9888, volume: 96610, thumb: "🐸" },
+    { name: "Invisible Friends", floorPrice: 0.1244, volume: 27075, thumb: "👻" },
+  ],
+  topFlyers: [
+    { name: "Kaito Genesis", floorPrice: 0.15, change: 41.65, thumb: "⚡" },
+    { name: "VoxFriends", floorPrice: 1.039, change: 28.79, thumb: "🌿" },
+    { name: "Bored Ape Kennel Club", floorPrice: 0.308, change: 13.48, thumb: "🐕" },
+    { name: "Pudgy Rods", floorPrice: 0.125, change: -5.07, thumb: "🐧" },
+    { name: "Terraforms by Mathcastles", floorPrice: 0.5001, change: -6.64, thumb: "🌍" },
+  ],
+};
+
+function collectionThumb(name: string, imageUrl?: string): string {
+  if (imageUrl) return imageUrl;
+  const n = name.toLowerCase();
+  if (n.includes("punk")) return "🧱";
+  if (n.includes("glyph")) return "✒";
+  if (n.includes("fidenza")) return "🎨";
+  if (n.includes("bored ape") || n.includes("bayc")) return "🦧";
+  if (n.includes("kennel")) return "🐕";
+  if (n.includes("pudgy")) return "🐧";
+  if (n.includes("nakamigo")) return "🍜";
+  if (n.includes("doodle")) return "🎨";
+  if (n.includes("azuki")) return "🎴";
+  if (n.includes("invisible")) return "👻";
+  if (n.includes("lil")) return "🐸";
+  return "◆";
+}
 
 function ListingCard({
   img,
@@ -104,6 +215,7 @@ function ListingCard({
   sell,
   profit,
   soon,
+  openseaUrl,
 }: {
   img: string;
   name: string;
@@ -111,10 +223,11 @@ function ListingCard({
   sell: string;
   profit: string;
   soon: boolean;
+  openseaUrl?: string;
 }) {
   const openListing = () => {
     if (soon) return;
-    window.open("https://opensea.io", "_blank", "noopener,noreferrer");
+    window.open(openseaUrl || "https://opensea.io", "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -180,9 +293,121 @@ export default function HomePage() {
   const [hideCaret, setHideCaret] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [marketTimeFrame, setMarketTimeFrame] = useState("24H");
+  const [marketTimeFrame, setMarketTimeFrame] = useState<MarketTimeFrame>("24H");
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSlideWidth, setMobileSlideWidth] = useState(0);
+
+  const { data: openSeaListings } = useOpenSeaMarketplaceListings(3);
+  const { data: pudgyListings } = useOpenSeaListings("pudgypenguins", 1);
+  const { data: openSeaSales } = useOpenSeaMarketplaceSales(3);
+  const { data: openSeaMarket } = useOpenSeaHomeMarket(marketTimeFrame);
+
+  const strategyPools = useMemo(() => {
+    const bySlug = new Map<string, { tokenId: string; priceEth: number }>();
+    for (const listing of [...(openSeaListings || []), ...(pudgyListings || [])]) {
+      if (!listing.tokenId || listing.priceEth <= 0) continue;
+      if (!bySlug.has(listing.collection)) {
+        bySlug.set(listing.collection, {
+          tokenId: listing.tokenId,
+          priceEth: listing.priceEth,
+        });
+      }
+    }
+
+    return STRATEGY_POOLS.map((pool) => {
+      const live = bySlug.get(pool.slug);
+      const tokenId = live?.tokenId || pool.fallbackTokenId;
+      const targetEth = live?.priceEth || pool.fallbackTargetEth;
+      return {
+        ...pool,
+        tokenId,
+        targetEth,
+        targetLabel: targetEth.toFixed(2),
+        targetUsd: formatUsd(targetEth),
+        raisedUsd: formatUsd(pool.raisedEth),
+      };
+    });
+  }, [openSeaListings, pudgyListings]);
+
+  const listingCards = useMemo(() => {
+    if (!openSeaListings?.length) return FALLBACK_LISTING_CARDS;
+
+    const live = openSeaListings
+      .filter((l) => l.priceEth > 0)
+      .slice(0, 12)
+      .map((listing) => {
+        const sellEth = listing.priceEth;
+        const boughtEth = Number((sellEth * 0.8).toFixed(2));
+        const profitPct = boughtEth > 0 ? ((sellEth - boughtEth) / boughtEth) * 100 : 0;
+        return {
+          img: listing.imageUrl || "/assets/images/image-4.jpg",
+          name: listing.name,
+          bought: boughtEth.toFixed(2),
+          sell: sellEth.toFixed(2),
+          profit: `${profitPct >= 0 ? "+" : ""}${profitPct.toFixed(1)}%`,
+          soon: false,
+          openseaUrl: listing.openseaUrl,
+        };
+      });
+
+    if (!live.length) return FALLBACK_LISTING_CARDS;
+    return [
+      ...live,
+      {
+        img: "/assets/images/image-4.jpg",
+        name: "COMING SOON",
+        bought: "--",
+        sell: "--",
+        profit: "--",
+        soon: true,
+        openseaUrl: "",
+      },
+    ];
+  }, [openSeaListings]);
+
+  const salesCards = useMemo(() => {
+    if (!openSeaSales?.length) return FALLBACK_SALES_CARDS;
+
+    const live = openSeaSales
+      .filter((s) => s.priceEth > 0)
+      .slice(0, 16)
+      .map((sale) => {
+        const saleEth = sale.priceEth;
+        const boughtEth = Number((saleEth * 0.9).toFixed(2));
+        const profitPct = boughtEth > 0 ? ((saleEth - boughtEth) / boughtEth) * 100 : 0;
+        return {
+          img: sale.imageUrl || "/assets/images/image-4.jpg",
+          name: sale.name,
+          bought: boughtEth.toFixed(2),
+          sale: saleEth.toFixed(2),
+          profit: `${profitPct >= 0 ? "+" : ""}${profitPct.toFixed(1)}%`,
+          openseaUrl: sale.openseaUrl,
+        };
+      });
+
+    return live.length ? live : FALLBACK_SALES_CARDS;
+  }, [openSeaSales]);
+
+  const market = useMemo(() => {
+    if (!openSeaMarket?.top?.length) return FALLBACK_MARKET;
+
+    const mapRow = (c: (typeof openSeaMarket.top)[number]) => ({
+      name: c.name,
+      floorPrice: c.floorPrice,
+      change: c.change,
+      volume: Math.round((c.volume || 0) * 2900),
+      thumb: collectionThumb(c.name, c.imageUrl),
+      imageUrl: c.imageUrl,
+    });
+
+    return {
+      totalVolume: openSeaMarket.totalVolume,
+      activeCollections: openSeaMarket.activeCollections,
+      top: openSeaMarket.top.map(mapRow),
+      trending: openSeaMarket.trending.map(mapRow),
+      topFlyers: openSeaMarket.topFlyers.map(mapRow),
+    };
+  }, [openSeaMarket]);
   const cardCount = 4;
   const cardWidth = 468;
   const cardGap = 14;
@@ -1241,299 +1466,108 @@ export default function HomePage() {
                     WebkitMaskImage: 'none'
                   }}
                 >
-                <div className="npc">
-                  <div className="npc-row">
-                    <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
-                      <img src="/assets/images/image-11.jpg" alt="Bored Ape Yacht Club" />
-                      <div className="npc-pool">POOL #3362</div>
-                    </div>
-                    <div className="npc-body">
-                      <div className="npc-head">
-                        <div>
-                          <div className="npc-name">Bored Ape Yacht Club <span>#3362</span></div>
-                          <div className="npc-tags">
-                            <span className="npc-tag">YUGA LABS</span>
-                            <span className="npc-tag">SERIES 1/1000</span>
+                {strategyPools.map((pool) => (
+                  <div className="npc" key={`${pool.slug}-${pool.tokenId}`}>
+                    <div className="npc-row">
+                      <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
+                        <img src={pool.img} alt={pool.name} />
+                        <div className="npc-pool">POOL #{pool.tokenId}</div>
+                      </div>
+                      <div className="npc-body">
+                        <div className="npc-head">
+                          <div>
+                            <div className="npc-name">
+                              {pool.name} <span>#{pool.tokenId}</span>
+                            </div>
+                            <div className="npc-tags">
+                              {pool.tags.map((tag) => (
+                                <span className="npc-tag" key={tag}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <button className="npc-insights" onClick={() => router.push("/pool/54587")}>
+                            <i></i>VIEW INSIGHTS
+                          </button>
+                        </div>
+                        <div className="npc-stats">
+                          <div>
+                            <div className="npc-sl">Pool Target</div>
+                            <div className="npc-sv">
+                              {pool.targetLabel}
+                              <span className="eth-ic"></span>
+                            </div>
+                            <div className="npc-su">{pool.targetUsd}</div>
+                          </div>
+                          <div>
+                            <div className="npc-sl">Community Raised</div>
+                            <div className="npc-sv raised">
+                              {pool.raisedEth.toFixed(2)}
+                              <span className="eth-ic"></span>
+                            </div>
+                            <div className="npc-su">{pool.raisedUsd}</div>
                           </div>
                         </div>
-                        <button className="npc-insights" onClick={() => router.push("/pool/54587")}>
-                          <i></i>VIEW INSIGHTS
-                        </button>
-                      </div>
-                      <div className="npc-stats">
-                        <div>
-                          <div className="npc-sl">Pool Target</div>
-                          <div className="npc-sv">10.00<span className="eth-ic"></span></div>
-                          <div className="npc-su">$21,975.20</div>
-                        </div>
-                        <div>
-                          <div className="npc-sl">Community Raised</div>
-                          <div className="npc-sv raised">4.52<span className="eth-ic"></span></div>
-                          <div className="npc-su">$9,932.79</div>
-                        </div>
-                      </div>
-                      <div className="npc-prog">
-                        <div className="npc-pr">
-                          <span>POOL PROGRESS</span>
-                          <span className="pct">45.2%</span>
-                        </div>
-                        <div className="npc-pb">
-                          <div className="npc-pf" style={{ width: '45.2%' }}></div>
-                        </div>
-                      </div>
-                      <div className="npc-act">
-                        <button className="npc-btn-d" onClick={(e) => {
-                          const npcCard = e.currentTarget.closest('.npc');
-                          if (npcCard) {
-                            npcCard.classList.toggle('open');
-                            const caret = e.currentTarget.querySelector('.car');
-                            if (caret) caret.textContent = npcCard.classList.contains('open') ? '▴' : '▾';
-                          }
-                        }}>
-                          <span className="car">▾</span>Pool Details
-                        </button>
-                        <button
-                          className="npc-btn-p"
-                          type="button"
-                          onClick={() => openDepositModal("Bored Ape Yacht Club #3362", "10.00")}
-                        >
-                          Make a Deposit Now
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="npc-detail">
-                    <div className="npc-detail-in">
-                      <div className="npc-db"><div className="npc-dl">GP Profit</div><div className="npc-dv">10.00%</div></div>
-                      <div className="npc-db"><div className="npc-dl">ETH Profit</div><div className="npc-dv">1.75 <span className="eth-ic"></span></div></div>
-                      <div className="npc-db"><div className="npc-dl">USDT Profit</div><div className="npc-dv">$4,198</div></div>
-                      <div className="npc-db"><div className="npc-dl">Users</div><div className="npc-dv">132</div></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="npc">
-                  <div className="npc-row">
-                    <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
-                      <img src="/assets/images/image-6.jpg" alt="Pudgy Penguins" />
-                      <div className="npc-pool">POOL #3362</div>
-                    </div>
-                    <div className="npc-body">
-                      <div className="npc-head">
-                        <div>
-                          <div className="npc-name">Pudgy Penguins <span>#3362</span></div>
-                          <div className="npc-tags">
-                            <span className="npc-tag">PPENGUIN</span>
-                            <span className="npc-tag">SERIES V/500</span>
+                        <div className="npc-prog">
+                          <div className="npc-pr">
+                            <span>POOL PROGRESS</span>
+                            <span className="pct">{pool.progress.toFixed(1)}%</span>
+                          </div>
+                          <div className="npc-pb">
+                            <div className="npc-pf" style={{ width: `${pool.progress}%` }}></div>
                           </div>
                         </div>
-                        <button className="npc-insights" onClick={() => router.push("/pool/54587")}>
-                          <i></i>VIEW INSIGHTS
-                        </button>
-                      </div>
-                      <div className="npc-stats">
-                        <div>
-                          <div className="npc-sl">Pool Target</div>
-                          <div className="npc-sv">5.45<span className="eth-ic"></span></div>
-                          <div className="npc-su">$11,976.48</div>
+                        <div className="npc-act">
+                          <button
+                            className="npc-btn-d"
+                            onClick={(e) => {
+                              const npcCard = e.currentTarget.closest(".npc");
+                              if (npcCard) {
+                                npcCard.classList.toggle("open");
+                                const caret = e.currentTarget.querySelector(".car");
+                                if (caret) caret.textContent = npcCard.classList.contains("open") ? "▴" : "▾";
+                              }
+                            }}
+                          >
+                            <span className="car">▾</span>Pool Details
+                          </button>
+                          <button
+                            className="npc-btn-p"
+                            type="button"
+                            onClick={() =>
+                              openDepositModal(`${pool.name} #${pool.tokenId}`, pool.targetLabel)
+                            }
+                          >
+                            Make a Deposit Now
+                          </button>
                         </div>
-                        <div>
-                          <div className="npc-sl">Community Raised</div>
-                          <div className="npc-sv raised">2.73<span className="eth-ic"></span></div>
-                          <div className="npc-su">$5,999.23</div>
-                        </div>
-                      </div>
-                      <div className="npc-prog">
-                        <div className="npc-pr">
-                          <span>POOL PROGRESS</span>
-                          <span className="pct">50.1%</span>
-                        </div>
-                        <div className="npc-pb">
-                          <div className="npc-pf" style={{ width: '50.1%' }}></div>
-                        </div>
-                      </div>
-                      <div className="npc-act">
-                        <button className="npc-btn-d" onClick={(e) => {
-                          const npcCard = e.currentTarget.closest('.npc');
-                          if (npcCard) {
-                            npcCard.classList.toggle('open');
-                            const caret = e.currentTarget.querySelector('.car');
-                            if (caret) caret.textContent = npcCard.classList.contains('open') ? '▴' : '▾';
-                          }
-                        }}>
-                          <span className="car">▾</span>Pool Details
-                        </button>
-                        <button
-                          className="npc-btn-p"
-                          type="button"
-                          onClick={(e) => {
-                            const card = e.currentTarget.closest(".npc");
-                            const name = card?.querySelector(".npc-name")?.textContent?.replace(/\s+/g, " ").trim() || "Pool Asset";
-                            const target = card?.querySelector(".npc-sv")?.textContent?.replace(/[^\d.]/g, "") || "0.00";
-                            openDepositModal(name, target);
-                          }}
-                        >
-                          Make a Deposit Now
-                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="npc-detail">
-                    <div className="npc-detail-in">
-                      <div className="npc-db"><div className="npc-dl">GP Profit</div><div className="npc-dv">10.00%</div></div>
-                      <div className="npc-db"><div className="npc-dl">ETH Profit</div><div className="npc-dv">1.75 <span className="eth-ic"></span></div></div>
-                      <div className="npc-db"><div className="npc-dl">USDT Profit</div><div className="npc-dv">$4,198</div></div>
-                      <div className="npc-db"><div className="npc-dl">Users</div><div className="npc-dv">132</div></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="npc">
-                  <div className="npc-row">
-                    <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
-                      <img src="/assets/images/image-3.jpg" alt="CryptoPunks" />
-                      <div className="npc-pool">POOL #7804</div>
-                    </div>
-                    <div className="npc-body">
-                      <div className="npc-head">
-                        <div>
-                          <div className="npc-name">CryptoPunks <span>#7804</span></div>
-                          <div className="npc-tags">
-                            <span className="npc-tag">LARVA LABS</span>
-                            <span className="npc-tag">SERIES 1/10000</span>
+                    <div className="npc-detail">
+                      <div className="npc-detail-in">
+                        <div className="npc-db">
+                          <div className="npc-dl">GP Profit</div>
+                          <div className="npc-dv">{pool.gpProfit}</div>
+                        </div>
+                        <div className="npc-db">
+                          <div className="npc-dl">ETH Profit</div>
+                          <div className="npc-dv">
+                            {pool.ethProfit} <span className="eth-ic"></span>
                           </div>
                         </div>
-                        <button className="npc-insights" onClick={() => router.push("/pool/54587")}>
-                          <i></i>VIEW INSIGHTS
-                        </button>
-                      </div>
-                      <div className="npc-stats">
-                        <div>
-                          <div className="npc-sl">Pool Target</div>
-                          <div className="npc-sv">31.00<span className="eth-ic"></span></div>
-                          <div className="npc-su">$68,123.12</div>
+                        <div className="npc-db">
+                          <div className="npc-dl">USDT Profit</div>
+                          <div className="npc-dv">{pool.usdtProfit}</div>
                         </div>
-                        <div>
-                          <div className="npc-sl">Community Raised</div>
-                          <div className="npc-sv raised">22.30<span className="eth-ic"></span></div>
-                          <div className="npc-su">$49,004.70</div>
+                        <div className="npc-db">
+                          <div className="npc-dl">Users</div>
+                          <div className="npc-dv">{pool.users}</div>
                         </div>
-                      </div>
-                      <div className="npc-prog">
-                        <div className="npc-pr">
-                          <span>POOL PROGRESS</span>
-                          <span className="pct">71.9%</span>
-                        </div>
-                        <div className="npc-pb">
-                          <div className="npc-pf" style={{ width: '71.9%' }}></div>
-                        </div>
-                      </div>
-                      <div className="npc-act">
-                        <button className="npc-btn-d" onClick={(e) => {
-                          const npcCard = e.currentTarget.closest('.npc');
-                          if (npcCard) {
-                            npcCard.classList.toggle('open');
-                            const caret = e.currentTarget.querySelector('.car');
-                            if (caret) caret.textContent = npcCard.classList.contains('open') ? '▴' : '▾';
-                          }
-                        }}>
-                          <span className="car">▾</span>Pool Details
-                        </button>
-                        <button
-                          className="npc-btn-p"
-                          type="button"
-                          onClick={(e) => {
-                            const card = e.currentTarget.closest(".npc");
-                            const name = card?.querySelector(".npc-name")?.textContent?.replace(/\s+/g, " ").trim() || "Pool Asset";
-                            const target = card?.querySelector(".npc-sv")?.textContent?.replace(/[^\d.]/g, "") || "0.00";
-                            openDepositModal(name, target);
-                          }}
-                        >
-                          Make a Deposit Now
-                        </button>
                       </div>
                     </div>
                   </div>
-                  <div className="npc-detail">
-                    <div className="npc-detail-in">
-                      <div className="npc-db"><div className="npc-dl">GP Profit</div><div className="npc-dv">9.20%</div></div>
-                      <div className="npc-db"><div className="npc-dl">ETH Profit</div><div className="npc-dv">2.10 <span className="eth-ic"></span></div></div>
-                      <div className="npc-db"><div className="npc-dl">USDT Profit</div><div className="npc-dv">$5,040</div></div>
-                      <div className="npc-db"><div className="npc-dl">Users</div><div className="npc-dv">88</div></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="npc">
-                  <div className="npc-row">
-                    <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
-                      <img src="/assets/images/image-7.jpg" alt="Azuki" />
-                      <div className="npc-pool">POOL #4521</div>
-                    </div>
-                    <div className="npc-body">
-                      <div className="npc-head">
-                        <div>
-                          <div className="npc-name">Azuki <span>#4521</span></div>
-                          <div className="npc-tags">
-                            <span className="npc-tag">AZUKI</span>
-                            <span className="npc-tag">SERIES 2/8888</span>
-                          </div>
-                        </div>
-                        <button className="npc-insights" onClick={() => router.push("/pool/54587")}>
-                          <i></i>VIEW INSIGHTS
-                        </button>
-                      </div>
-                      <div className="npc-stats">
-                        <div>
-                          <div className="npc-sl">Pool Target</div>
-                          <div className="npc-sv">8.50<span className="eth-ic"></span></div>
-                          <div className="npc-su">$18,678.90</div>
-                        </div>
-                        <div>
-                          <div className="npc-sl">Community Raised</div>
-                          <div className="npc-sv raised">6.12<span className="eth-ic"></span></div>
-                          <div className="npc-su">$13,448.64</div>
-                        </div>
-                      </div>
-                      <div className="npc-prog">
-                        <div className="npc-pr">
-                          <span>POOL PROGRESS</span>
-                          <span className="pct">72.0%</span>
-                        </div>
-                        <div className="npc-pb">
-                          <div className="npc-pf" style={{ width: '72.0%' }}></div>
-                        </div>
-                      </div>
-                      <div className="npc-act">
-                        <button className="npc-btn-d" onClick={(e) => {
-                          const npcCard = e.currentTarget.closest('.npc');
-                          if (npcCard) {
-                            npcCard.classList.toggle('open');
-                            const caret = e.currentTarget.querySelector('.car');
-                            if (caret) caret.textContent = npcCard.classList.contains('open') ? '▴' : '▾';
-                          }
-                        }}>
-                          <span className="car">▾</span>Pool Details
-                        </button>
-                        <button
-                          className="npc-btn-p"
-                          type="button"
-                          onClick={() => openDepositModal("Azuki #4521", "8.50")}
-                        >
-                          Make a Deposit Now
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="npc-detail">
-                    <div className="npc-detail-in">
-                      <div className="npc-db"><div className="npc-dl">GP Profit</div><div className="npc-dv">9.80%</div></div>
-                      <div className="npc-db"><div className="npc-dl">ETH Profit</div><div className="npc-dv">1.92 <span className="eth-ic"></span></div></div>
-                      <div className="npc-db"><div className="npc-dl">USDT Profit</div><div className="npc-dv">$4,220</div></div>
-                      <div className="npc-db"><div className="npc-dl">Users</div><div className="npc-dv">104</div></div>
-                    </div>
-                  </div>
-                </div>
+                ))}
                 </div>
               </div>
 
@@ -1550,8 +1584,8 @@ export default function HomePage() {
               <div className="listings-section" style={{ marginBottom: '22px' }}>
                 {isMobile ? (
                   <div className="lg listings-mobile-grid">
-                    {LISTING_CARDS.map((item) => (
-                      <ListingCard key={`${item.name}-${item.img}`} {...item} />
+                    {listingCards.map((item) => (
+                      <ListingCard key={`${item.name}-${item.img}-${item.sell}`} {...item} />
                     ))}
                   </div>
                 ) : (
@@ -1560,7 +1594,7 @@ export default function HomePage() {
                     spaceBetween={10}
                     slidesPerView={5}
                     slidesPerGroup={1}
-                    loop={true}
+                    loop={listingCards.length > 5}
                     autoplay={{
                       delay: 2500,
                       disableOnInteraction: false,
@@ -1573,8 +1607,8 @@ export default function HomePage() {
                       1280: { slidesPerView: 5, spaceBetween: 10 }
                     }}
                   >
-                    {LISTING_CARDS.map((item) => (
-                      <SwiperSlide key={`${item.name}-${item.img}`}>
+                    {listingCards.map((item) => (
+                      <SwiperSlide key={`${item.name}-${item.img}-${item.sell}`}>
                         <ListingCard {...item} />
                       </SwiperSlide>
                     ))}
@@ -1615,11 +1649,14 @@ export default function HomePage() {
                 <div className="mkp">
                   <div className="mk">
                     <div className="mkl">Total Volume</div>
-                    <div className="mkv">42,819 <span className="mku">ETH</span></div>
+                    <div className="mkv">
+                      {market.totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}{" "}
+                      <span className="mku">ETH</span>
+                    </div>
                   </div>
                   <div className="mk">
                     <div className="mkl">Active Collections</div>
-                    <div className="mkv">1,204</div>
+                    <div className="mkv">{market.activeCollections.toLocaleString()}</div>
                   </div>
                   <div className="mk">
                     <div className="mkl">ETH Gas</div>
@@ -1633,27 +1670,82 @@ export default function HomePage() {
                 <div className="mtt">
                   <div>
                     <div className="mttl"><span className="mdt"></span> Top</div>
-                    <div className="mr"><div className="mrth">🧱</div><div className="mri"><div className="mrn">CryptoPunks</div><div className="mrf">Floor: 30.1900 <span className="eth-ic"></span></div></div><div className="mrc pos" id="mrc1" data-base="+0.18 %">+0.18 %</div></div>
-                    <div className="mr"><div className="mrth">✒</div><div className="mri"><div className="mrn">Autoglyphs</div><div className="mrf">Floor: 81.0000 <span className="eth-ic"></span></div></div><div className="mrc neg" id="mrc2" data-base="−8.88 %">−8.88 %</div></div>
-                    <div className="mr"><div className="mrth">🎨</div><div className="mri"><div className="mrn">Fidenza by Tyler Hobbs</div><div className="mrf">Floor: 16.4000 <span className="eth-ic"></span></div></div><div className="mrc neg" id="mrc3" data-base="−0.38 %">−0.38 %</div></div>
-                    <div className="mr"><div className="mrth">🦧</div><div className="mri"><div className="mrn">Bored Ape Yacht Club</div><div className="mrf">Floor: 7.7994 <span className="eth-ic"></span></div></div><div className="mrc pos" id="mrc4" data-base="+2.44 %">+2.44 %</div></div>
-                    <div className="mr"><div className="mrth">🐧</div><div className="mri"><div className="mrn">Pudgy Penguins</div><div className="mrf">Floor: 4.3499 <span className="eth-ic"></span></div></div><div className="mrc pos" id="mrc5" data-base="+6.38 %">+6.38 %</div></div>
+                    {market.top.map((row, i) => {
+                      const changeLabel = formatChangePct(row.change);
+                      const isPos = row.change >= 0;
+                      const thumbIsUrl = typeof row.thumb === "string" && row.thumb.startsWith("http");
+                      return (
+                        <div className="mr" key={`top-${row.name}-${i}`}>
+                          <div className="mrth">
+                            {thumbIsUrl ? (
+                              <img src={row.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 6 }} />
+                            ) : (
+                              row.thumb
+                            )}
+                          </div>
+                          <div className="mri">
+                            <div className="mrn">{row.name}</div>
+                            <div className="mrf">
+                              Floor: {row.floorPrice.toFixed(4)} <span className="eth-ic"></span>
+                            </div>
+                          </div>
+                          <div className={`mrc ${isPos ? "pos" : "neg"}`} data-base={changeLabel}>
+                            {changeLabel}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                   <div>
                     <div className="mttl"><span className="mdt"></span> Trending</div>
-                    <div className="mr"><div className="mrth">🍜</div><div className="mri"><div className="mrn">Nakamigos</div><div className="mrf">Floor: 0.1358 Ξ · Vol: $4,881</div></div></div>
-                    <div className="mr"><div className="mrth">🐻</div><div className="mri"><div className="mrn">NORMIES</div><div className="mrf">Floor: 0.0544 Ξ · Vol: $7,7317</div></div></div>
-                    <div className="mr"><div className="mrth">⚡</div><div className="mri"><div className="mrn">Kaito Genesis</div><div className="mrf">Floor: 1.3589 Ξ · Vol: $3,4152</div></div></div>
-                    <div className="mr"><div className="mrth">🐸</div><div className="mri"><div className="mrn">Lil Pudgys</div><div className="mrf">Floor: 0.9888 Ξ · Vol: $9,6610</div></div></div>
-                    <div className="mr"><div className="mrth">👻</div><div className="mri"><div className="mrn">Invisible Friends</div><div className="mrf">Floor: 0.1244 Ξ · Vol: $2,7075</div></div></div>
+                    {market.trending.map((row, i) => {
+                      const thumbIsUrl = typeof row.thumb === "string" && row.thumb.startsWith("http");
+                      return (
+                        <div className="mr" key={`trend-${row.name}-${i}`}>
+                          <div className="mrth">
+                            {thumbIsUrl ? (
+                              <img src={row.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 6 }} />
+                            ) : (
+                              row.thumb
+                            )}
+                          </div>
+                          <div className="mri">
+                            <div className="mrn">{row.name}</div>
+                            <div className="mrf">
+                              Floor: {row.floorPrice.toFixed(4)} Ξ · Vol: ${(row.volume || 0).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                   <div>
                     <div className="mttl"><span className="mdt"></span> Top Flyers</div>
-                    <div className="mr"><div className="mrth">⚡</div><div className="mri"><div className="mrn">Kaito Genesis</div><div className="mrf">Floor: 0.1500 <span className="eth-ic"></span></div></div><div className="mrc pos" id="mrc6" data-base="+41.65 %">+41.65 %</div></div>
-                    <div className="mr"><div className="mrth">🌿</div><div className="mri"><div className="mrn">VoxFriends</div><div className="mrf">Floor: 1.0390 <span className="eth-ic"></span></div></div><div className="mrc pos" id="mrc7" data-base="+28.79 %">+28.79 %</div></div>
-                    <div className="mr"><div className="mrth">🐕</div><div className="mri"><div className="mrn">Bored Ape Kennel Club</div><div className="mrf">Floor: 0.3080 <span className="eth-ic"></span></div></div><div className="mrc pos" id="mrc8" data-base="+13.48 %">+13.48 %</div></div>
-                    <div className="mr"><div className="mrth">🐧</div><div className="mri"><div className="mrn">Pudgy Rods</div><div className="mrf">Floor: 0.1250 <span className="eth-ic"></span></div></div><div className="mrc neg" id="mrc9" data-base="−5.07 %">−5.07 %</div></div>
-                    <div className="mr"><div className="mrth">🌍</div><div className="mri"><div className="mrn">Terraforms by Mathcastles</div><div className="mrf">Floor: 0.5001 <span className="eth-ic"></span></div></div><div className="mrc neg" id="mrc10" data-base="−6.64 %">−6.64 %</div></div>
+                    {market.topFlyers.map((row, i) => {
+                      const changeLabel = formatChangePct(row.change);
+                      const isPos = row.change >= 0;
+                      const thumbIsUrl = typeof row.thumb === "string" && row.thumb.startsWith("http");
+                      return (
+                        <div className="mr" key={`flyer-${row.name}-${i}`}>
+                          <div className="mrth">
+                            {thumbIsUrl ? (
+                              <img src={row.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 6 }} />
+                            ) : (
+                              row.thumb
+                            )}
+                          </div>
+                          <div className="mri">
+                            <div className="mrn">{row.name}</div>
+                            <div className="mrf">
+                              Floor: {row.floorPrice.toFixed(4)} <span className="eth-ic"></span>
+                            </div>
+                          </div>
+                          <div className={`mrc ${isPos ? "pos" : "neg"}`} data-base={changeLabel}>
+                            {changeLabel}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1664,14 +1756,29 @@ export default function HomePage() {
                   <div className="sub">All NFTs sold by HNTR</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <a className="va" style={{ cursor: 'pointer' }}>View All Sales</a>
+                  <a
+                    className="va"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => router.push("/marketplace")}
+                  >
+                    View All Sales
+                  </a>
                 </div>
               </div>
 
               <div className="sales-marquee" ref={salesMarqueeRef}>
                 <div className="sales-track" id="salesTrack" ref={salesTrackRef}>
-                  {[...SALES_CARDS, ...SALES_CARDS].map((sale, idx) => (
-                    <div className="sc" key={`${sale.name}-${idx}`}>
+                  {[...salesCards, ...salesCards].map((sale, idx) => (
+                    <div
+                      className="sc"
+                      key={`${sale.name}-${idx}`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => {
+                        if (sale.openseaUrl) {
+                          window.open(sale.openseaUrl, "_blank", "noopener,noreferrer");
+                        }
+                      }}
+                    >
                       <div className="badge bsold">SOLD</div>
                       <img className="scimg" src={sale.img} alt={sale.name} draggable={false} />
                       <div className="scb">

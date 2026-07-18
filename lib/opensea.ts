@@ -19,7 +19,40 @@ export interface OpenSeaCollectionStats {
   nftCount: number;
   ownerCount: number;
   imageUrl: string;
+  volumeOneDay: number;
+  volumeSevenDay: number;
+  volumeThirtyDay: number;
+  /** Floor / volume change as a percentage (e.g. 2.4 = +2.4%) */
+  changeOneDay: number;
+  changeSevenDay: number;
+  changeThirtyDay: number;
 }
+
+export interface OpenSeaSale {
+  tokenId: string;
+  name: string;
+  imageUrl: string;
+  collection: string;
+  contract: string;
+  chain: string;
+  priceEth: number;
+  openseaUrl: string;
+  timestamp: number;
+}
+
+/** Extra blue-chips used on the homepage market overview. */
+export const OPENSEA_HOME_MARKET_SLUGS = [
+  "cryptopunks",
+  "boredapeyachtclub",
+  "azuki",
+  "fidenza-by-tyler-hobbs",
+  "pudgypenguins",
+  "nakamigos",
+  "doodles-official",
+  "lilpudgys",
+  "invisiblefriends",
+  "bored-ape-kennel-club",
+] as const;
 
 export interface OpenSeaNFT {
   tokenId: string;
@@ -82,11 +115,34 @@ function parseEth(value: string | number | undefined): number {
   return Number.isNaN(num) ? 0 : num;
 }
 
+function parseIntervalChange(interval: any): number {
+  // Prefer explicit floor/price change; fall back to volume_change (fraction → %).
+  const raw =
+    interval?.floor_price_change ??
+    interval?.price_change ??
+    interval?.volume_change ??
+    0;
+  const num = Number(raw);
+  if (Number.isNaN(num)) return 0;
+  // OpenSea often returns fractions (0.024); treat |x| < 1 as fraction.
+  return Math.abs(num) > 0 && Math.abs(num) < 1 ? num * 100 : num;
+}
+
+function findInterval(intervals: any[], key: string) {
+  return (intervals || []).find(
+    (i) => String(i?.interval || i?.period || "").toLowerCase().replace(/-/g, "_") === key,
+  );
+}
+
 export async function fetchCollectionStats(slug: string): Promise<OpenSeaCollectionStats> {
   const stats = (await fetchOpenSea<any>(`/collections/${slug}/stats`)) ?? {};
   const collection = (await fetchOpenSea<any>(`/collections/${slug}`).catch(() => ({}))) ?? {};
 
   const total = stats.total || {};
+  const intervals = stats.intervals || [];
+  const oneDay = findInterval(intervals, "one_day");
+  const sevenDay = findInterval(intervals, "seven_day");
+  const thirtyDay = findInterval(intervals, "thirty_day");
 
   return {
     slug,
@@ -96,7 +152,68 @@ export async function fetchCollectionStats(slug: string): Promise<OpenSeaCollect
     nftCount: Number(collection.total_supply ?? total.num_owners ?? 0),
     ownerCount: Number(total.num_owners ?? 0),
     imageUrl: collection.image_url || "",
+    volumeOneDay: parseEth(oneDay?.volume),
+    volumeSevenDay: parseEth(sevenDay?.volume),
+    volumeThirtyDay: parseEth(thirtyDay?.volume),
+    changeOneDay: parseIntervalChange(oneDay),
+    changeSevenDay: parseIntervalChange(sevenDay),
+    changeThirtyDay: parseIntervalChange(thirtyDay),
   };
+}
+
+function paymentToEth(payment: any): number {
+  if (!payment) return 0;
+  const decimals = Number(payment.decimals ?? 18);
+  const raw = payment.quantity ?? payment.value;
+  if (raw === undefined || raw === null) return 0;
+  try {
+    const value = BigInt(String(raw));
+    return decimals > 0 ? Number(value) / 10 ** decimals : Number(value);
+  } catch {
+    return parseEth(raw);
+  }
+}
+
+export async function fetchCollectionSales(
+  slug: string,
+  limit = 8,
+): Promise<OpenSeaSale[]> {
+  const data = await fetchOpenSea<any>(
+    `/events/collection/${slug}?event_type=sale&limit=${limit}`,
+  );
+  const events = data?.asset_events || data?.events || [];
+
+  return events
+    .map((event: any): OpenSeaSale | null => {
+      const type = event.event_type || event.eventType;
+      if (type && type !== "sale") return null;
+
+      const nft = event.nft || event.asset || {};
+      const tokenId = String(nft.identifier || nft.token_id || "");
+      const contract = nft.contract || "";
+      const chain = event.chain || nft.chain || "ethereum";
+      if (!tokenId) return null;
+
+      const priceEth = paymentToEth(event.payment);
+      if (priceEth <= 0) return null;
+
+      return {
+        tokenId,
+        name: nft.name || `${slug} #${tokenId}`,
+        imageUrl: nft.display_image_url || nft.image_url || "",
+        collection: nft.collection || slug,
+        contract,
+        chain,
+        priceEth,
+        openseaUrl:
+          nft.opensea_url ||
+          (contract
+            ? `https://opensea.io/assets/${chain}/${contract}/${tokenId}`
+            : `https://opensea.io/collection/${slug}`),
+        timestamp: Number(event.event_timestamp || event.closing_date || 0),
+      };
+    })
+    .filter(Boolean) as OpenSeaSale[];
 }
 
 export async function fetchCollectionNFTs(
@@ -350,4 +467,95 @@ export function useOpenSeaMarketplaceListings(limitPerCollection = 4) {
     staleTime: 60_000,
     refetchInterval: 120_000,
   });
+}
+
+/** Recent sales across known marketplace collections. */
+export function useOpenSeaMarketplaceSales(limitPerCollection = 3) {
+  const slugs = Object.values(OPENSEA_COLLECTION_SLUGS);
+  const key = getApiKey();
+
+  return useQuery({
+    queryKey: ["opensea", "sales", slugs, limitPerCollection],
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        slugs.map((slug) => fetchCollectionSales(slug, limitPerCollection)),
+      );
+
+      return results
+        .map((result, index) => {
+          if (result.status === "rejected") {
+            console.error(`OpenSea sales failed for ${slugs[index]}:`, result.reason);
+            return [] as OpenSeaSale[];
+          }
+          return result.value;
+        })
+        .flat()
+        .sort((a, b) => b.timestamp - a.timestamp);
+    },
+    enabled: !!key,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
+export type MarketTimeFrame = "24H" | "7D" | "30D";
+
+function volumeForTimeframe(stats: OpenSeaCollectionStats, tf: MarketTimeFrame): number {
+  if (tf === "24H") return stats.volumeOneDay || stats.totalVolume;
+  if (tf === "7D") return stats.volumeSevenDay || stats.totalVolume;
+  return stats.volumeThirtyDay || stats.totalVolume;
+}
+
+function changeForTimeframe(stats: OpenSeaCollectionStats, tf: MarketTimeFrame): number {
+  if (tf === "24H") return stats.changeOneDay;
+  if (tf === "7D") return stats.changeSevenDay;
+  return stats.changeThirtyDay;
+}
+
+/** Homepage market overview: floors, volumes, and ranked lists for a timeframe. */
+export function useOpenSeaHomeMarket(timeFrame: MarketTimeFrame = "24H") {
+  const slugs = [...OPENSEA_HOME_MARKET_SLUGS];
+  const key = getApiKey();
+
+  return useQuery({
+    queryKey: ["opensea", "home-market", slugs, timeFrame],
+    queryFn: async () => {
+      const results = await Promise.allSettled(slugs.map((slug) => fetchCollectionStats(slug)));
+      const collections = results
+        .map((result, index) => {
+          if (result.status === "rejected") {
+            console.error(`OpenSea home market failed for ${slugs[index]}:`, result.reason);
+            return null;
+          }
+          return result.value;
+        })
+        .filter(Boolean) as OpenSeaCollectionStats[];
+
+      const withMeta = collections.map((c) => ({
+        ...c,
+        volume: volumeForTimeframe(c, timeFrame),
+        change: changeForTimeframe(c, timeFrame),
+      }));
+
+      const totalVolume = withMeta.reduce((sum, c) => sum + (c.volume || 0), 0);
+      const byVolume = [...withMeta].sort((a, b) => b.volume - a.volume);
+      const byChange = [...withMeta].sort((a, b) => b.change - a.change);
+
+      return {
+        totalVolume,
+        activeCollections: withMeta.length,
+        top: byVolume.slice(0, 5),
+        trending: byVolume.slice(0, 5),
+        topFlyers: byChange.slice(0, 5),
+      };
+    },
+    enabled: !!key,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
+export function formatChangePct(change: number): string {
+  const sign = change > 0 ? "+" : change < 0 ? "−" : "";
+  return `${sign}${Math.abs(change).toFixed(2)} %`;
 }

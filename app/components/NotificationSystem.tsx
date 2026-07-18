@@ -1,16 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAccount } from "wagmi";
 import {
-  INITIAL_NOTIFICATIONS,
   SALE_TOASTS,
   SALE_TOAST_DURATION_MS,
-  STANDARD_TOASTS,
   STANDARD_TOAST_DURATION_MS,
-  type NotificationItem,
   type SaleToastData,
   type StandardToastData,
 } from "../../lib/notification-data";
+import {
+  formatRelativeTime,
+  useMarkNotificationsRead,
+  useNotifications,
+  type BackendNotification,
+} from "../../lib/notifications";
 
 const CHECK_ICON = (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -41,16 +45,40 @@ function pickRandom<T>(items: T[]) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+function toPanelItem(n: BackendNotification) {
+  return {
+    id: n._id,
+    title: n.title,
+    sub: n.sub,
+    time: formatRelativeTime(n.createdAt),
+    read: n.read,
+  };
+}
+
+function notificationToToast(n: BackendNotification): StandardToastData {
+  return {
+    title: n.title,
+    sub: n.sub,
+    link: n.link || "VIEW",
+  };
+}
+
 type NotificationSystemProps = {
   panelOpen: boolean;
 };
 
 export default function NotificationSystem({ panelOpen }: NotificationSystemProps) {
-  const [toasts, setToasts] = useState<ActiveToast[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-  const toastTimers = useRef<Map<string, number>>(new Map());
+  const { address, isConnected } = useAccount();
+  const { data, isLoading } = useNotifications(50);
+  const markRead = useMarkNotificationsRead();
 
-  const unreadCount = notifications.filter((item) => !item.read).length;
+  const [toasts, setToasts] = useState<ActiveToast[]>([]);
+  const toastTimers = useRef<Map<string, number>>(new Map());
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const hydratedRef = useRef(false);
+
+  const notifications = (data?.notifications || []).map(toPanelItem);
+  const unreadCount = data?.unreadCount ?? notifications.filter((item) => !item.read).length;
 
   const dismissToast = useCallback((id: string) => {
     const timer = toastTimers.current.get(id);
@@ -116,48 +144,60 @@ export default function NotificationSystem({ panelOpen }: NotificationSystemProp
     [pushToast]
   );
 
+  // Toast new backend notifications as they arrive (skip initial hydrate).
   useEffect(() => {
-    let standardTimer: number | undefined;
+    const list = data?.notifications || [];
+    if (!list.length) {
+      if (data && !hydratedRef.current) hydratedRef.current = true;
+      return;
+    }
+
+    if (!hydratedRef.current) {
+      list.forEach((n) => seenIdsRef.current.add(n._id));
+      hydratedRef.current = true;
+      return;
+    }
+
+    const fresh = list.filter((n) => !seenIdsRef.current.has(n._id) && !n.read);
+    fresh.forEach((n) => {
+      seenIdsRef.current.add(n._id);
+      if (canShowToast()) showStandardToast(notificationToToast(n));
+    });
+  }, [data, showStandardToast]);
+
+  // Reset hydrate state when wallet disconnects / changes.
+  useEffect(() => {
+    hydratedRef.current = false;
+    seenIdsRef.current.clear();
+  }, [address, isConnected]);
+
+  // Keep demo NFT sale toasts only; standard fake toasts are replaced by backend events.
+  useEffect(() => {
     let saleTimer: number | undefined;
 
-    const scheduleStandardToast = () => {
-      const delay = 22000 + Math.random() * 24000;
-      standardTimer = window.setTimeout(() => {
-        if (canShowToast()) showStandardToast(pickRandom(STANDARD_TOASTS));
-        scheduleStandardToast();
-      }, delay);
-    };
-
     const scheduleSaleToast = () => {
-      const delay = 18000 + Math.random() * 12000;
+      const delay = 28000 + Math.random() * 20000;
       saleTimer = window.setTimeout(() => {
         if (canShowToast()) showSaleToast(pickRandom(SALE_TOASTS));
         scheduleSaleToast();
       }, delay);
     };
 
-    const firstStandard = window.setTimeout(() => {
-      if (canShowToast()) showStandardToast(STANDARD_TOASTS[0]);
-      scheduleStandardToast();
-    }, 3000 + Math.random() * 2000);
-
     const firstSale = window.setTimeout(() => {
       if (canShowToast()) showSaleToast(SALE_TOASTS[0]);
       scheduleSaleToast();
-    }, 9000 + Math.random() * 4000);
+    }, 14000 + Math.random() * 6000);
 
     return () => {
-      clearTimeout(firstStandard);
       clearTimeout(firstSale);
-      if (standardTimer) clearTimeout(standardTimer);
       if (saleTimer) clearTimeout(saleTimer);
       toastTimers.current.forEach((timer) => clearTimeout(timer));
       toastTimers.current.clear();
     };
-  }, [showSaleToast, showStandardToast]);
+  }, [showSaleToast]);
 
   useEffect(() => {
-    window.showToast = (data: StandardToastData) => showStandardToast(data);
+    window.showToast = (toastData: StandardToastData) => showStandardToast(toastData);
     return () => {
       delete window.showToast;
     };
@@ -170,7 +210,8 @@ export default function NotificationSystem({ panelOpen }: NotificationSystemProp
   }, [unreadCount]);
 
   const clearNotifications = () => {
-    setNotifications((items) => items.map((item) => ({ ...item, read: true })));
+    if (!isConnected) return;
+    markRead.mutate(undefined);
   };
 
   const pauseDismiss = (id: string) => {
@@ -265,12 +306,25 @@ export default function NotificationSystem({ panelOpen }: NotificationSystemProp
       <div className={`notif-panel${panelOpen ? " open" : ""}`} id="notifPanel">
         <div className="notif-panel-hdr">
           <div className="notif-panel-title">Notifications</div>
-          <button className="notif-clear-btn" type="button" onClick={clearNotifications}>
+          <button
+            className="notif-clear-btn"
+            type="button"
+            onClick={clearNotifications}
+            disabled={!isConnected || unreadCount === 0 || markRead.isPending}
+          >
             Mark all read
           </button>
         </div>
         <div className="notif-list" id="notifList">
-          {notifications.length === 0 ? (
+          {!isConnected ? (
+            <div style={{ textAlign: "center", padding: "24px", fontSize: "11px", color: "var(--t0)" }}>
+              Connect your wallet to see notifications
+            </div>
+          ) : isLoading ? (
+            <div style={{ textAlign: "center", padding: "24px", fontSize: "11px", color: "var(--t0)" }}>
+              Loading…
+            </div>
+          ) : notifications.length === 0 ? (
             <div style={{ textAlign: "center", padding: "24px", fontSize: "11px", color: "var(--t0)" }}>
               No notifications
             </div>

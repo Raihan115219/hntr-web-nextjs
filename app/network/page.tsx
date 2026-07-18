@@ -9,7 +9,9 @@ import {
   useDashboardData,
   useTransactionHistory,
   useNetworkTree,
-  useLeadershipPayouts,
+  useLeadershipStatus,
+  useAchievementStatus,
+  formatPoolWalletBalances,
   formatTokenAmount,
   formatVolume,
   type TransactionEntry,
@@ -113,7 +115,8 @@ export default function NetworkPage() {
   const { summary, refetchSummary, isFetching } = useDashboardData();
   const { data: txData } = useTransactionHistory(100);
   const { data: treeData } = useNetworkTree(summary?.username);
-  const { data: leadershipPayouts } = useLeadershipPayouts();
+  const { data: leadershipStatus } = useLeadershipStatus();
+  const { data: achievementStatus } = useAchievementStatus();
   const claimCommissions = useClaimCommissions();
   const [claimBusy, setClaimBusy] = useState(false);
   const [txSearch, setTxSearch] = useState("");
@@ -193,10 +196,59 @@ export default function NetworkPage() {
     : !hasClaimableCommissions
     ? "Nothing to claim yet — commissions appear here as your network purchases memberships."
     : "";
-  const totalLeadershipReceived = (leadershipPayouts || [])
-    .filter((p) => p.status === "PAID")
-    .reduce((sum, p) => sum + p.amountUSDC, 0);
-  const hasLeadershipHistory = (leadershipPayouts || []).length > 0;
+  const hasLeadershipShares = !!leadershipStatus?.hasShares;
+  const leadershipShares = leadershipStatus?.shares ?? 0;
+  const totalLeadershipReceived = leadershipStatus?.lifetimePaidUSD ?? 0;
+  const estimatedLeadershipPayout = leadershipStatus?.estimatedPayoutUSD ?? 0;
+  const leadershipAmountLabel = hasLeadershipShares
+    ? totalLeadershipReceived > 0
+      ? `$${totalLeadershipReceived.toFixed(2)}`
+      : `~$${estimatedLeadershipPayout.toFixed(2)}`
+    : "$0.00";
+  const leadershipNote = !leadershipStatus
+    ? "…"
+    : hasLeadershipShares
+    ? totalLeadershipReceived > 0
+      ? "PAID"
+      : `${leadershipShares} SHARE${leadershipShares === 1 ? "" : "S"}`
+    : "NO SHARES";
+  const leadershipPoolLabel = formatPoolWalletBalances(leadershipStatus?.walletBalances);
+  const leadershipDesc = !leadershipStatus
+    ? "Loading leadership pool status…"
+    : hasLeadershipShares
+    ? `You have ${leadershipShares} share${leadershipShares === 1 ? "" : "s"} as ${leadershipStatus.rank}. ` +
+      (totalLeadershipReceived > 0
+        ? `$${totalLeadershipReceived.toFixed(2)} lifetime auto-deposited. Est. next: $${estimatedLeadershipPayout.toFixed(2)}.`
+        : `Est. next payout $${estimatedLeadershipPayout.toFixed(2)} from the current $${leadershipStatus.poolBalanceUSD.toFixed(2)} pool.`)
+    : "You don't have any shares. Reach Hunter rank or above to earn a share of the monthly leadership pool.";
+
+  const achievementLifetimePaid = achievementStatus?.lifetimePaidUSD ?? 0;
+  const achievementPending = achievementStatus?.pendingUSD ?? 0;
+  const hasAchievementPending = !!achievementStatus?.hasPending;
+  const hasAchievementPaid = !!achievementStatus?.hasPaid;
+  const achievementAmountLabel = !achievementStatus
+    ? "$0.00"
+    : hasAchievementPending
+    ? `$${achievementPending.toFixed(2)}`
+    : `$${achievementLifetimePaid.toFixed(2)}`;
+  const achievementNote = !achievementStatus
+    ? "…"
+    : hasAchievementPending
+    ? "PENDING"
+    : hasAchievementPaid
+    ? "PAID"
+    : "NONE";
+  const achievementTag = !achievementStatus
+    ? "…"
+    : hasAchievementPending
+    ? "PENDING"
+    : hasAchievementPaid
+    ? "AUTO-DEPOSITED"
+    : "ONE-TIME";
+  const achievementPoolLabel = formatPoolWalletBalances(achievementStatus?.walletBalances);
+  const achievementDesc =
+    achievementStatus?.message ||
+    "No rank bonus yet — reach Scout or above to unlock one-time achievement bonuses.";
 
   useEffect(() => {
     const canvas = canvasRef.current as PlexusCanvas | null;
@@ -547,13 +599,18 @@ export default function NetworkPage() {
                     ></path>
                   </>
                 ),
-                tag: hasLeadershipHistory ? "AUTO-DEPOSITED" : "MONTHLY",
+                tag: hasLeadershipShares
+                  ? totalLeadershipReceived > 0
+                    ? "AUTO-DEPOSITED"
+                    : "ELIGIBLE"
+                  : "NO SHARES",
                 name: "Leadership Bonus",
-                desc: "Automatically deposited to your wallet on the 1st of each month, based on your leadership rank's share of the pool.",
-                amount: `$${totalLeadershipReceived.toFixed(2)}`,
+                desc: leadershipDesc,
+                poolBalance: leadershipPoolLabel,
+                amount: leadershipAmountLabel,
                 delay: ".10s",
                 claimable: false,
-                note: hasLeadershipHistory ? "PAID" : "SOON",
+                note: leadershipNote,
               },
               {
                 icon: (
@@ -563,13 +620,14 @@ export default function NetworkPage() {
                     <rect x="13.6" y="3" width="3.4" height="14" rx="1" stroke="currentColor" strokeWidth="1.5"></rect>
                   </>
                 ),
-                tag: "COMING SOON",
+                tag: achievementTag,
                 name: "Rank Bonus",
-                desc: "Bonus calculated based on organization performance metrics.",
-                amount: "$0.00",
+                desc: achievementDesc,
+                poolBalance: achievementPoolLabel,
+                amount: achievementAmountLabel,
                 delay: ".15s",
                 claimable: false,
-                note: "SOON",
+                note: achievementNote,
               },
               {
                 icon: (
@@ -650,6 +708,22 @@ export default function NetworkPage() {
                   <div className="net-rc-tag">{reward.tag}</div>
                 </div>
                 <div className="net-rc-name">{reward.name}</div>
+                {"poolBalance" in reward && reward.poolBalance ? (
+                  <div
+                    className="net-rc-pool-bal"
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "var(--t2)",
+                      marginTop: "4px",
+                      marginBottom: "2px",
+                      letterSpacing: "0.02em",
+                    }}
+                    title="On-chain pool wallet balance"
+                  >
+                    {reward.poolBalance}
+                  </div>
+                ) : null}
                 <div className="net-rc-desc">{reward.desc}</div>
                 <div className="net-rc-footer">
                   <div className="net-rc-amount">{reward.amount}</div>
