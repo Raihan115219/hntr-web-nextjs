@@ -56,6 +56,14 @@ function PoolDetailView({ pool }: { pool: PoolDetail }) {
 
   const handleDeposit = () => openDepositModal(pool.shortName, pool.floorEth);
 
+  const goBack = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/pools");
+  };
+
   const copyShareLink = async () => {
     const url = window.location.href;
     try {
@@ -82,7 +90,20 @@ function PoolDetailView({ pool }: { pool: PoolDetail }) {
     <MainLayout>
       <div className="feed" id="feed-pooldetail">
         <div className="breadcrumb">
-          <div className="bc-title">Pools Details</div>
+          <div className="bc-head">
+            <button className="bc-back" type="button" onClick={goBack} aria-label="Back to pools">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M10 3.5 5.5 8l4.5 4.5"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <div className="bc-title">Pools Details</div>
+          </div>
           <div className="bc-sub">
             Item: <span>{pool.name} Details</span>
           </div>
