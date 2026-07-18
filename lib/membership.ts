@@ -8,10 +8,47 @@ import {
   getPublicClient,
 } from "wagmi/actions";
 import { config } from "./wagmi";
-import { erc20Abi, hntrMembershipAbi, TOKEN_ADDRESSES } from "./contracts";
+import { erc20Abi, hntrMembershipAbi, TOKEN_ADDRESSES, TIERS, type TierName } from "./contracts";
 import { api } from "./api";
 import { ensureAuth } from "./auth";
 import { getAddress } from "viem";
+
+export type { TierName };
+
+/** Tier ladder index (0 = none / unknown). Matches on-chain enum order. */
+export function getTierIndex(tierName: string | null | undefined): number {
+  if (!tierName || tierName === "None" || tierName === "NONE") return 0;
+  const idx = TIERS.findIndex((t) => t.name.toLowerCase() === tierName.toLowerCase());
+  return idx >= 0 ? idx + 1 : 0;
+}
+
+export function getTierPriceUsd(tierName: string | null | undefined): number {
+  const tier = TIERS.find((t) => t.name.toLowerCase() === (tierName || "").toLowerCase());
+  return tier?.priceUsd ?? 0;
+}
+
+/**
+ * USD the user still owes to reach `targetTier` from `currentTier`.
+ * Full price if they have no membership; difference if upgrading; 0 if same/lower.
+ */
+export function getAmountDueUsd(
+  targetTier: string,
+  currentTier: string | null | undefined,
+): number {
+  const targetPrice = getTierPriceUsd(targetTier);
+  const currentIdx = getTierIndex(currentTier);
+  if (currentIdx === 0) return targetPrice;
+  const currentPrice = getTierPriceUsd(currentTier);
+  if (getTierIndex(targetTier) <= currentIdx) return 0;
+  return Math.max(0, targetPrice - currentPrice);
+}
+
+export function canPurchaseOrUpgradeTier(
+  targetTier: string,
+  currentTier: string | null | undefined,
+): boolean {
+  return getTierIndex(targetTier) > getTierIndex(currentTier);
+}
 
 export class MembershipFlowError extends Error {
   code: string;

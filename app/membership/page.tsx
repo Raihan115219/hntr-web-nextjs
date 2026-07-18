@@ -6,8 +6,15 @@ import { useAccount } from "wagmi";
 import { useRouter } from "nextjs-toploader/app";
 import { ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
-import { purchaseOrUpgradeTier, MembershipFlowError } from "../../lib/membership";
+import {
+  purchaseOrUpgradeTier,
+  MembershipFlowError,
+  getAmountDueUsd,
+  getTierIndex,
+  canPurchaseOrUpgradeTier,
+} from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
+import { useDashboardData } from "../../lib/rewards";
 import { COMMISSION_LEVELS, TIERS } from "../../lib/contracts";
 
 declare global {
@@ -27,14 +34,25 @@ export default function MembershipPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { connectWallet } = useConnectWallet();
+  const { summary, refetchSummary } = useDashboardData();
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [purchasePhase, setPurchasePhase] = useState<TierPurchasePhase | null>(null);
 
-  const tierButtonLabel = (tierName: string, defaultLabel: string) => {
-    if (pendingTier !== tierName) return defaultLabel;
-    if (purchasePhase === "loading") return "LOADING...";
-    if (purchasePhase === "wallet") return "CONFIRM IN WALLET";
-    return defaultLabel;
+  const currentTier = summary?.tier && summary.tier !== "None" ? summary.tier : null;
+  const currentTierIndex = getTierIndex(currentTier);
+
+  const tierButtonLabel = (
+    tierName: string,
+    opts: { isCurrent: boolean; isLower: boolean; isUpgrade: boolean },
+  ) => {
+    if (opts.isCurrent) return "CURRENT";
+    if (opts.isLower) return "LOCKED";
+    if (pendingTier === tierName) {
+      if (purchasePhase === "loading") return "LOADING...";
+      if (purchasePhase === "wallet") return "CONFIRM IN WALLET";
+    }
+    if (opts.isUpgrade) return "UPGRADE";
+    return tierName === "Gold" ? "PURCHASE" : "SELECT";
   };
 
   useEffect(() => {
@@ -65,6 +83,18 @@ export default function MembershipPage() {
 
   const selectTier = async (tierName: string) => {
     if (pendingTier) return;
+    if (!canPurchaseOrUpgradeTier(tierName, currentTier)) {
+      window.showToast?.({
+        title: currentTierIndex > 0 ? "Cannot downgrade" : "Unavailable",
+        sub:
+          currentTierIndex > 0
+            ? `You already hold ${currentTier}. Only higher tiers can be purchased.`
+            : "This package is not available.",
+        link: "",
+      });
+      return;
+    }
+
     setPendingTier(tierName);
     setPurchasePhase(null);
     try {
@@ -82,10 +112,11 @@ export default function MembershipPage() {
       });
 
       window.showToast?.({
-        title: "Membership activated",
-        sub: `${result.tier} tier confirmed — welcome to your network.`,
+        title: result.isUpgrade ? "Membership upgraded" : "Membership activated",
+        sub: `${result.tier} tier confirmed — paid ${result.amountLabel}.`,
         link: "",
       });
+      await refetchSummary();
       router.push("/network");
     } catch (error) {
       if (error instanceof ApiError && error.code === "USER_NOT_REGISTERED") {
@@ -116,7 +147,9 @@ export default function MembershipPage() {
             <div className="hero-content">
               <div className="hero-title">Membership Packages</div>
               <div className="hero-sub">
-                Select a tier to unlock platform features. Deeper unilevel commissions also require the matching network rank.
+                {currentTier
+                  ? `You hold ${currentTier}. Upgrade prices show only the difference you still owe — downgrades are not available.`
+                  : "Select a tier to unlock platform features. Deeper unilevel commissions also require the matching network rank."}
               </div>
             </div>
           </div>
@@ -124,18 +157,46 @@ export default function MembershipPage() {
           {/* TIER CARDS */}
           <div className="tiers-grid">
             {TIERS.map((tier, idx) => {
-              const isRecommended = tier.name === "Gold";
-              const defaultLabel = isRecommended ? "PURCHASE" : "SELECT";
+              const tierIndex = idx + 1;
+              const isCurrent = currentTierIndex > 0 && tierIndex === currentTierIndex;
+              const isLower = currentTierIndex > 0 && tierIndex < currentTierIndex;
+              const isUpgrade = currentTierIndex > 0 && tierIndex > currentTierIndex;
+              const isRecommended = !currentTier && tier.name === "Gold";
+              const amountDue = getAmountDueUsd(tier.name, currentTier);
+              const disabled = !!pendingTier || isCurrent || isLower;
               const hasExtra = tier.name === "Diamond";
+              const buttonLabel = tierButtonLabel(tier.name, { isCurrent, isLower, isUpgrade });
+
               return (
-                <div className={`tier-card${isRecommended ? " recommended" : ""}`} key={tier.name}>
+                <div
+                  className={`tier-card${isRecommended ? " recommended" : ""}${isCurrent ? " current" : ""}${isLower ? " locked" : ""}`}
+                  key={tier.name}
+                  style={isLower || isCurrent ? { opacity: isCurrent ? 0.92 : 0.55 } : undefined}
+                >
                   {isRecommended && <div className="recommended-badge">RECOMMENDED</div>}
+                  {isCurrent && (
+                    <div className="recommended-badge" style={{ background: "var(--green, #5E6B55)" }}>
+                      YOUR PLAN
+                    </div>
+                  )}
                   <div className="tier-label">Tier 0{idx + 1}</div>
                   <div className="tier-name">{tier.name}</div>
                   <div className="tier-price">
-                    ${tier.priceUsd.toLocaleString()}
+                    ${(isUpgrade ? amountDue : tier.priceUsd).toLocaleString()}
                     <span className="tier-price-unit">USD</span>
                   </div>
+                  {isUpgrade && (
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--t0)",
+                        marginTop: "-6px",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Upgrade from {currentTier} · full price ${tier.priceUsd.toLocaleString()}
+                    </div>
+                  )}
                   <div className="tier-divider"></div>
                   <div className="tier-features">
                     <div className="tier-feature">
@@ -170,11 +231,18 @@ export default function MembershipPage() {
                     )}
                   </div>
                   <button
-                    className={`tier-btn${isRecommended ? " purchase" : ""}`}
+                    className={`tier-btn${isRecommended || isUpgrade ? " purchase" : ""}`}
                     onClick={() => selectTier(tier.name)}
-                    disabled={!!pendingTier}
+                    disabled={disabled}
+                    title={
+                      isLower
+                        ? "Downgrades are not allowed"
+                        : isCurrent
+                        ? "This is your current membership"
+                        : undefined
+                    }
                   >
-                    {tierButtonLabel(tier.name, defaultLabel)}
+                    {buttonLabel}
                   </button>
                 </div>
               );
