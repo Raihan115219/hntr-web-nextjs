@@ -4,11 +4,10 @@ import MainLayout from "../components/MainLayout";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { useRouter } from "nextjs-toploader/app";
-import { ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
+import { handleAppError } from "../../lib/errors";
 import {
   purchaseOrUpgradeTier,
-  MembershipFlowError,
   getAmountDueUsd,
   getTierIndex,
   canPurchaseOrUpgradeTier,
@@ -119,16 +118,8 @@ export default function MembershipPage() {
       await refetchSummary();
       router.push("/network");
     } catch (error) {
-      if (error instanceof ApiError && error.code === "USER_NOT_REGISTERED") {
-        window.showToast?.({ title: "Complete sign up first", sub: "Finish registration, then pick a tier.", link: "" });
-        window.openSignup?.();
-      } else {
-        const message =
-          error instanceof ApiError || error instanceof MembershipFlowError || error instanceof Error
-            ? error.message
-            : "Please try again.";
-        window.showToast?.({ title: "Purchase failed", sub: message, link: "" });
-      }
+      const resolved = handleAppError(error, "Purchase failed");
+      if (resolved.openSignup) window.openSignup?.();
     } finally {
       setPendingTier(null);
       setPurchasePhase(null);

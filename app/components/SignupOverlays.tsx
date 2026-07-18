@@ -5,7 +5,8 @@ import { useAccount } from "wagmi";
 import { api, ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
 import { TIERS } from "../../lib/contracts";
-import { purchaseOrUpgradeTier, MembershipFlowError } from "../../lib/membership";
+import { handleAppError } from "../../lib/errors";
+import { purchaseOrUpgradeTier } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
 
 function setModalBodyLock(locked: boolean) {
@@ -23,20 +24,7 @@ function closeMembershipFlow() {
 }
 
 function notifyError(title: string, error: unknown) {
-  const sub = formatPurchaseError(error);
-  window.showToast?.({ title, sub, link: "" });
-}
-
-function formatPurchaseError(error: unknown): string {
-  if (error instanceof ApiError || error instanceof MembershipFlowError) return error.message;
-  if (error instanceof Error) {
-    const msg = error.message.toLowerCase();
-    if (msg.includes("user rejected") || msg.includes("user denied") || msg.includes("rejected the request")) {
-      return "Transaction cancelled in your wallet.";
-    }
-    return error.message;
-  }
-  return "Please try again.";
+  handleAppError(error, title);
 }
 
 function isValidEmail(value: string) {

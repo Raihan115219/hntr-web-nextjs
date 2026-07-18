@@ -10,7 +10,8 @@ import SignupOverlays from "./SignupOverlays";
 import SignupCard from "./SignupCard";
 import NotificationSystem from "./NotificationSystem";
 import DepositModal from "./DepositModal";
-import { ApiError, clearStoredAuth } from "../../lib/api";
+import { clearStoredAuth } from "../../lib/api";
+import { handleAppError } from "../../lib/errors";
 import { useDashboardData, useClaimCommissions, usePointsSummary } from "../../lib/rewards";
 import type { StandardToastData } from "../../lib/notification-data";
 
@@ -418,11 +419,7 @@ export default function MainLayout({
         link: "",
       });
     } catch (error) {
-      window.showToast?.({
-        title: "Claim failed",
-        sub: error instanceof ApiError ? error.message : (error as Error)?.message || "Please try again.",
-        link: "",
-      });
+      handleAppError(error, "Claim failed");
     } finally {
       setClaimBusy(false);
     }

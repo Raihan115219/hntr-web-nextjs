@@ -3,7 +3,7 @@
 import MainLayout from "../components/MainLayout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
-import { ApiError } from "../../lib/api";
+import { handleAppError } from "../../lib/errors";
 import {
   useClaimCommissions,
   useDashboardData,
@@ -338,11 +338,7 @@ export default function NetworkPage() {
         link: "",
       });
     } catch (error) {
-      window.showToast?.({
-        title: "Claim failed",
-        sub: error instanceof ApiError ? error.message : (error as Error)?.message || "Please try again.",
-        link: "",
-      });
+      handleAppError(error, "Claim failed");
     } finally {
       setClaimBusy(false);
     }

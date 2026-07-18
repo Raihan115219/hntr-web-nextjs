@@ -140,14 +140,18 @@ export async function purchaseOrUpgradeTier(
   if (quote.needsApproval) {
     const tokenAddress = quote.tokenAddress || TOKEN_ADDRESSES[tokenSymbol];
     progress?.onAwaitingWallet?.();
-    const approveHash = await writeContract(config, {
-      address: tokenAddress,
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [quote.contractAddress, BigInt(quote.amountDueRaw)],
-    });
-    progress?.onWalletAccepted?.();
-    await waitForTransactionReceipt(config, { hash: approveHash });
+    try {
+      const approveHash = await writeContract(config, {
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [quote.contractAddress, BigInt(quote.amountDueRaw)],
+      });
+      progress?.onWalletAccepted?.();
+      await waitForTransactionReceipt(config, { hash: approveHash });
+    } catch (err) {
+      throw toMembershipWalletError(err, "Token approval failed.");
+    }
   }
 
   // Fetch the signed auth as late as possible (after any approve), so the
@@ -224,13 +228,18 @@ export async function purchaseOrUpgradeTier(
   }
 
   progress?.onAwaitingWallet?.();
-  const txHash = await writeContract(config, {
-    address: contractAddress,
-    abi: hntrMembershipAbi,
-    functionName,
-    args: [...args],
-    ...(gas !== undefined ? { gas } : {}),
-  });
+  let txHash: `0x${string}`;
+  try {
+    txHash = await writeContract(config, {
+      address: contractAddress,
+      abi: hntrMembershipAbi,
+      functionName,
+      args: [...args],
+      ...(gas !== undefined ? { gas } : {}),
+    });
+  } catch (err) {
+    throw toMembershipWalletError(err, "Membership purchase failed.");
+  }
   progress?.onWalletAccepted?.();
   await waitForTransactionReceipt(config, { hash: txHash });
 
@@ -240,6 +249,42 @@ export async function purchaseOrUpgradeTier(
     isUpgrade: quote.isUpgrade,
     amountLabel: `${quote.amountDueFormatted} ${quote.tokenSymbol}`,
   };
+}
+
+function toMembershipWalletError(err: unknown, fallback: string): MembershipFlowError {
+  const anyErr = err as {
+    code?: string | number;
+    shortMessage?: string;
+    message?: string;
+    cause?: { shortMessage?: string; reason?: string; message?: string };
+  };
+  const message =
+    anyErr?.shortMessage ||
+    anyErr?.cause?.shortMessage ||
+    anyErr?.cause?.reason ||
+    anyErr?.message ||
+    anyErr?.cause?.message ||
+    fallback;
+  const lower = message.toLowerCase();
+  const code = anyErr?.code != null ? String(anyErr.code) : undefined;
+
+  if (
+    code === "4001" ||
+    code === "ACTION_REJECTED" ||
+    lower.includes("user rejected") ||
+    lower.includes("user denied") ||
+    lower.includes("rejected the request")
+  ) {
+    return new MembershipFlowError("USER_REJECTED", "You rejected the request in your wallet.");
+  }
+  if (
+    lower.includes("insufficient funds") ||
+    lower.includes("insufficient balance") ||
+    lower.includes("exceeds the balance")
+  ) {
+    return new MembershipFlowError("INSUFFICIENT_BALANCE", message);
+  }
+  return new MembershipFlowError("WALLET_ERROR", message);
 }
 
 const TIER_COPY: Record<string, { uni: string; pool: string }> = {

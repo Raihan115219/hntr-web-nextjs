@@ -15,6 +15,7 @@ import {
   useNotifications,
   type BackendNotification,
 } from "../../lib/notifications";
+import { installGlobalErrorHandler } from "../../lib/errors";
 
 const CHECK_ICON = (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -198,8 +199,10 @@ export default function NotificationSystem({ panelOpen }: NotificationSystemProp
 
   useEffect(() => {
     window.showToast = (toastData: StandardToastData) => showStandardToast(toastData);
+    installGlobalErrorHandler();
     return () => {
       delete window.showToast;
+      delete window.handleAppError;
     };
   }, [showStandardToast]);
 
