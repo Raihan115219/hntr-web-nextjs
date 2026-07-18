@@ -171,30 +171,30 @@ export default function NotificationSystem({ panelOpen }: NotificationSystemProp
     seenIdsRef.current.clear();
   }, [address, isConnected]);
 
-  // Keep demo NFT sale toasts only; standard fake toasts are replaced by backend events.
-  useEffect(() => {
-    let saleTimer: number | undefined;
-
-    const scheduleSaleToast = () => {
-      const delay = 28000 + Math.random() * 20000;
-      saleTimer = window.setTimeout(() => {
-        if (canShowToast()) showSaleToast(pickRandom(SALE_TOASTS));
-        scheduleSaleToast();
-      }, delay);
-    };
-
-    const firstSale = window.setTimeout(() => {
-      if (canShowToast()) showSaleToast(SALE_TOASTS[0]);
-      scheduleSaleToast();
-    }, 14000 + Math.random() * 6000);
-
-    return () => {
-      clearTimeout(firstSale);
-      if (saleTimer) clearTimeout(saleTimer);
-      toastTimers.current.forEach((timer) => clearTimeout(timer));
-      toastTimers.current.clear();
-    };
-  }, [showSaleToast]);
+  // Demo NFT sale popups disabled.
+  // useEffect(() => {
+  //   let saleTimer: number | undefined;
+  //
+  //   const scheduleSaleToast = () => {
+  //     const delay = 28000 + Math.random() * 20000;
+  //     saleTimer = window.setTimeout(() => {
+  //       if (canShowToast()) showSaleToast(pickRandom(SALE_TOASTS));
+  //       scheduleSaleToast();
+  //     }, delay);
+  //   };
+  //
+  //   const firstSale = window.setTimeout(() => {
+  //     if (canShowToast()) showSaleToast(SALE_TOASTS[0]);
+  //     scheduleSaleToast();
+  //   }, 14000 + Math.random() * 6000);
+  //
+  //   return () => {
+  //     clearTimeout(firstSale);
+  //     if (saleTimer) clearTimeout(saleTimer);
+  //     toastTimers.current.forEach((timer) => clearTimeout(timer));
+  //     toastTimers.current.clear();
+  //   };
+  // }, [showSaleToast]);
 
   useEffect(() => {
     window.showToast = (toastData: StandardToastData) => showStandardToast(toastData);

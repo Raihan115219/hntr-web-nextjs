@@ -866,6 +866,7 @@ function dismissSaleToast(el) {
 }
 window.dismissSaleToast = dismissSaleToast;
 
+/* Demo NFT sale popups disabled.
 function scheduleSaleToast() {
   var delay = 18000 + Math.random() * 12000;
   setTimeout(function() {
@@ -878,6 +879,7 @@ setTimeout(function() {
   showSaleToast(SALE_TOASTS[0]);
   scheduleSaleToast();
 }, 9000 + Math.random() * 4000);
+*/
 
 /* ══ WALLET PANEL ══ */
 function toggleWalletPanel() {
