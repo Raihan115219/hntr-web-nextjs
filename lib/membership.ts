@@ -111,8 +111,6 @@ export async function purchaseOrUpgradeTier(
     });
     progress?.onWalletAccepted?.();
     await waitForTransactionReceipt(config, { hash: approveHash });
-  } else {
-    progress?.onWalletAccepted?.();
   }
 
   // Fetch the signed auth as late as possible (after any approve), so the
