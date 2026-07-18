@@ -64,12 +64,14 @@ function drawNetworkTree() {
   const H = Math.max(svg.parentElement.offsetHeight, 320);
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-  const cs = getComputedStyle(document.documentElement);
+  const cs = getComputedStyle(document.body);
   const olive  = cs.getPropertyValue('--olive').trim()  || '#5E6B55';
   const sage   = cs.getPropertyValue('--sage').trim()   || '#A8B5A2';
   const sf     = cs.getPropertyValue('--sage-faint').trim() || '#dce3da';
-  const t2val  = cs.getPropertyValue('--t2').trim()     || 'rgba(58,67,49,.64)';
-  const e2val  = cs.getPropertyValue('--e2').trim()     || '#ffffff';
+  const textPrimary = 'var(--t4)';
+  const textSecondary = 'var(--t2)';
+  const cardFill = 'var(--e2)';
+  const edgeStroke = 'var(--sage-faint)';
 
   // ── real downline tree, wired in from network/page.tsx via window.__networkTreeData ──
   const treeData = window.__networkTreeData || null;
@@ -125,7 +127,7 @@ function drawNetworkTree() {
     const rect = nsvg('rect');
     rect.setAttribute('x',x); rect.setAttribute('y',y);
     rect.setAttribute('width',w); rect.setAttribute('height',h); rect.setAttribute('rx','6');
-    rect.setAttribute('fill',e2val); rect.setAttribute('stroke', big?olive:sage);
+    rect.setAttribute('fill',cardFill); rect.setAttribute('stroke', big?olive:sage);
     rect.setAttribute('stroke-width', big?'1.4':'1');
     grp.appendChild(rect);
     const bar = nsvg('rect');
@@ -141,8 +143,8 @@ function drawNetworkTree() {
       if(weight) t.setAttribute('font-weight',weight);
       t.textContent = txt; grp.appendChild(t);
     };
-    if(big){ line(n.user,15,'8.5',olive,'700'); line(n.addr,27,'7.5',t2val); line(n.mem.toUpperCase(),38.5,'6.5',sage,'700'); }
-    else   { line(n.user,11,'6',olive,'700'); line(n.addr,19.5,'5.4',t2val); line(n.mem.toUpperCase(),27.5,'4.8',sage,'700'); }
+    if(big){ line(n.user,15,'8.5',textPrimary,'700'); line(n.addr,27,'7.5',textSecondary); line(n.mem.toUpperCase(),38.5,'6.5','var(--sage)','700'); }
+    else   { line(n.user,11,'6',textPrimary,'700'); line(n.addr,19.5,'5.4',textSecondary); line(n.mem.toUpperCase(),27.5,'4.8','var(--sage)','700'); }
   }
 
   // Draw edges
@@ -152,7 +154,7 @@ function drawNetworkTree() {
     line.setAttribute('x1', na.x); line.setAttribute('y1', na.y);
     line.setAttribute('x2', nb.x); line.setAttribute('y2', nb.y);
     const lv = nb.level;
-    line.setAttribute('stroke', lv===3 ? 'rgba(168,181,162,.18)' : lv===2 ? 'rgba(168,181,162,.28)' : sf);
+    line.setAttribute('stroke', lv===3 ? edgeStroke : lv===2 ? edgeStroke : sf);
     line.setAttribute('stroke-width', lv===3 ? '0.8' : lv===2 ? '1' : '1.4');
     line.style.strokeDasharray = '300';
     line.style.strokeDashoffset = '300';
@@ -186,7 +188,7 @@ function drawNetworkTree() {
         t.setAttribute('text-anchor','middle');
         t.setAttribute('font-family',"'Space Mono',monospace");
         t.setAttribute('font-size', ki?'7':'9');
-        t.setAttribute('fill', ki?sage:olive);
+        t.setAttribute('fill', ki ? textSecondary : textPrimary);
         if(!ki) t.setAttribute('font-weight','700');
         t.textContent = n[k]; grp.appendChild(t);
       });
@@ -223,7 +225,7 @@ function drawNetworkTree() {
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('font-family', "'Space Mono',monospace");
       t.setAttribute('font-size', i === 0 ? '10' : '8');
-      t.setAttribute('fill', i === 0 ? olive : t2val);
+      t.setAttribute('fill', i === 0 ? textPrimary : textSecondary);
       if (i === 0) t.setAttribute('font-weight', '700');
       t.textContent = text;
       g.appendChild(t);
@@ -243,18 +245,18 @@ function drawNetworkTree() {
     const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
     rect.setAttribute('x',x); rect.setAttribute('y', H-36);
     rect.setAttribute('width','26'); rect.setAttribute('height','26');
-    rect.setAttribute('rx','5'); rect.setAttribute('fill',e2val);
-    rect.setAttribute('stroke', sf); rect.setAttribute('stroke-width','0.8');
+    rect.setAttribute('rx','5'); rect.setAttribute('fill',cardFill);
+    rect.setAttribute('stroke', edgeStroke); rect.setAttribute('stroke-width','0.8');
     btn.appendChild(rect);
     const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
     txt.setAttribute('x', x+13); txt.setAttribute('y', H-17);
     txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','central');
     txt.setAttribute('font-family',"'Space Mono',monospace");
-    txt.setAttribute('font-size','14'); txt.setAttribute('fill',olive);
+    txt.setAttribute('font-size','14'); txt.setAttribute('fill',textPrimary);
     txt.textContent = label; btn.appendChild(txt);
     btn.addEventListener('click', function(e){ e.stopPropagation(); cb(); applyTransform(); });
     btn.addEventListener('mouseover', () => rect.setAttribute('fill', sf));
-    btn.addEventListener('mouseleave', () => rect.setAttribute('fill', e2val));
+    btn.addEventListener('mouseleave', () => rect.setAttribute('fill', cardFill));
     svg.appendChild(btn); // on svg, not g, so not affected by zoom
   }
 
@@ -267,20 +269,20 @@ function drawNetworkTree() {
   const resetRect = document.createElementNS('http://www.w3.org/2000/svg','rect');
   resetRect.setAttribute('x', W-100); resetRect.setAttribute('y', H-36);
   resetRect.setAttribute('width','32'); resetRect.setAttribute('height','26');
-  resetRect.setAttribute('rx','5'); resetRect.setAttribute('fill',e2val);
-  resetRect.setAttribute('stroke',sf); resetRect.setAttribute('stroke-width','0.8');
+  resetRect.setAttribute('rx','5'); resetRect.setAttribute('fill',cardFill);
+  resetRect.setAttribute('stroke',edgeStroke); resetRect.setAttribute('stroke-width','0.8');
   resetBtn.appendChild(resetRect);
   const resetTxt = document.createElementNS('http://www.w3.org/2000/svg','text');
   resetTxt.setAttribute('x', W-84); resetTxt.setAttribute('y', H-17);
   resetTxt.setAttribute('text-anchor','middle'); resetTxt.setAttribute('dominant-baseline','central');
   resetTxt.setAttribute('font-family',"'Space Mono',monospace");
-  resetTxt.setAttribute('font-size','7.5'); resetTxt.setAttribute('fill',t2val);
+  resetTxt.setAttribute('font-size','7.5'); resetTxt.setAttribute('fill',textSecondary);
   resetTxt.textContent = 'RESET'; resetBtn.appendChild(resetTxt);
   resetBtn.addEventListener('click', function(e){
     e.stopPropagation(); zoom=1; panX=0; panY=0; applyTransform();
   });
   resetBtn.addEventListener('mouseover', () => resetRect.setAttribute('fill', sf));
-  resetBtn.addEventListener('mouseleave', () => resetRect.setAttribute('fill', e2val));
+  resetBtn.addEventListener('mouseleave', () => resetRect.setAttribute('fill', cardFill));
   svg.appendChild(resetBtn);
 
   // Wheel zoom
@@ -325,7 +327,7 @@ function drawNetworkTree() {
 function drawQR(){
   const canvas=document.getElementById('qrCanvas');if(!canvas)return;
   const ctx=canvas.getContext('2d'),size=160,cells=20,cell=size/cells;
-  const cs=getComputedStyle(document.documentElement);
+  const cs=getComputedStyle(document.body);
   const olive=cs.getPropertyValue('--olive').trim()||'#5E6B55';
   const bg=cs.getPropertyValue('--e3').trim()||'#f4f2ee';
   ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
@@ -336,3 +338,14 @@ function drawQR(){
 
 window.drawNetworkTree = drawNetworkTree;
 window.drawQR = drawQR;
+
+if (!window._topoThemeObs) {
+  let lastDark = document.body.classList.contains('dark');
+  window._topoThemeObs = new MutationObserver(() => {
+    const isDark = document.body.classList.contains('dark');
+    if (isDark === lastDark) return;
+    lastDark = isDark;
+    if (document.getElementById('topoSvg')) drawNetworkTree();
+  });
+  window._topoThemeObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+}

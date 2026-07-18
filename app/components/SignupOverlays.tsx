@@ -39,6 +39,10 @@ function formatPurchaseError(error: unknown): string {
   return "Please try again.";
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 type SignupPurchasePhase = "wallet" | "loading";
 
 type SignupPurchaseStatus =
@@ -46,6 +50,12 @@ type SignupPurchaseStatus =
   | { state: "wallet" | "loading"; tier: string }
   | { state: "success"; tier: string; message: string }
   | { state: "error"; message: string };
+
+type Step2FieldErrors = {
+  sponsor?: string;
+  username?: string;
+  email?: string;
+};
 
 declare global {
   interface Window {
@@ -72,7 +82,17 @@ export default function SignupOverlays() {
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [purchasePhase, setPurchasePhase] = useState<SignupPurchasePhase | null>(null);
   const [purchaseStatus, setPurchaseStatus] = useState<SignupPurchaseStatus>({ state: "idle" });
+  const [step2Errors, setStep2Errors] = useState<Step2FieldErrors>({});
   const purchaseBusyRef = useRef(false);
+
+  const clearStep2Error = useCallback((field: keyof Step2FieldErrors) => {
+    setStep2Errors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -225,19 +245,27 @@ export default function SignupOverlays() {
 
   const handleContinueRegistration = async () => {
     if (registerBusy) return;
-    const username = usernameRef.current?.value.trim();
-    const email = emailRef.current?.value.trim();
+    const sponsor = sponsorUsername.trim().replace(/^@/, "");
+    const username = usernameRef.current?.value.trim() ?? "";
+    const email = emailRef.current?.value.trim() ?? "";
     const phone = phoneRef.current?.value.trim();
 
-    if (!username) {
-      window.showToast?.({ title: "Username required", sub: "Enter a username or referral ID to continue.", link: "" });
+    const errors: Step2FieldErrors = {};
+    if (!sponsor) errors.sponsor = "Sponsor username is required.";
+    if (!username) errors.username = "Username is required.";
+    if (email && !isValidEmail(email)) {
+      errors.email = "Enter a valid email address (e.g. name@company.com).";
+    }
+    if (Object.keys(errors).length > 0) {
+      setStep2Errors(errors);
       return;
     }
     if (!address) {
-      notifyError("Registration failed", new Error("Wallet not connected."));
+      setStep2Errors({ sponsor: "Wallet not connected. Go back and connect your wallet." });
       return;
     }
 
+    setStep2Errors({});
     setRegisterBusy(true);
     try {
       await api.post("/api/users/register", {
@@ -245,7 +273,7 @@ export default function SignupOverlays() {
         walletAddress: address,
         email,
         phone,
-        sponsorUsername: sponsorUsername || undefined,
+        sponsorUsername: sponsor,
       });
       setCurrentUsername(username);
       setPurchaseStatus({ state: "idle" });
@@ -353,16 +381,31 @@ export default function SignupOverlays() {
               <div className="su-field">
                 <label className="su-lbl">Sponsor</label>
                 <input
-                  className="su-input"
+                  className={`su-input${step2Errors.sponsor ? " is-error" : ""}`}
                   value={sponsorLocked ? `@${sponsorUsername}` : sponsorUsername}
-                  placeholder="@sponsor_username (optional)"
+                  placeholder="@sponsor_username"
                   disabled={sponsorLocked}
-                  onChange={(e) => setSponsorUsername(e.target.value.replace(/^@/, ""))}
+                  required
+                  aria-invalid={!!step2Errors.sponsor}
+                  onChange={(e) => {
+                    setSponsorUsername(e.target.value.replace(/^@/, ""));
+                    clearStep2Error("sponsor");
+                  }}
                 />
+                {step2Errors.sponsor && <p className="su-field-error">{step2Errors.sponsor}</p>}
               </div>
               <div className="su-field">
-                <label className="su-lbl">Username / Referral ID</label>
-                <input className="su-input" id="suUsername" ref={usernameRef} placeholder="e.g. ALPHA" />
+                <label className="su-lbl">Username</label>
+                <input
+                  className={`su-input${step2Errors.username ? " is-error" : ""}`}
+                  id="suUsername"
+                  ref={usernameRef}
+                  placeholder="e.g. ALPHA"
+                  required
+                  aria-invalid={!!step2Errors.username}
+                  onChange={() => clearStep2Error("username")}
+                />
+                {step2Errors.username && <p className="su-field-error">{step2Errors.username}</p>}
               </div>
               <div className="su-field">
                 <label className="su-lbl">Full Name</label>
@@ -388,8 +431,23 @@ export default function SignupOverlays() {
               </div>
               <div className="su-field">
                 <label className="su-lbl">Email Address</label>
-                <input className="su-input" type="email" ref={emailRef} placeholder="institutional@gmail.com" />
+                <input
+                  className={`su-input${step2Errors.email ? " is-error" : ""}`}
+                  type="email"
+                  ref={emailRef}
+                  placeholder="institutional@gmail.com"
+                  autoComplete="email"
+                  inputMode="email"
+                  aria-invalid={!!step2Errors.email}
+                  onChange={() => clearStep2Error("email")}
+                />
+                {step2Errors.email && <p className="su-field-error">{step2Errors.email}</p>}
               </div>
+              {Object.keys(step2Errors).length > 0 && (
+                <div className="su-form-errors" role="alert">
+                  Please complete the required fields before continuing.
+                </div>
+              )}
               <button className="su-primary" type="button" onClick={handleContinueRegistration} disabled={registerBusy}>
                 {registerBusy ? "Registering..." : <>Continue&nbsp;&nbsp;→</>}
               </button>

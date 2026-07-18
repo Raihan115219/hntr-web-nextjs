@@ -364,20 +364,6 @@ export default function NetworkPage() {
                 onClick={() => refetchSummary()}
                 disabled={isFetching}
                 title="Refresh rewards data"
-                style={{
-                  marginTop: "12px",
-                  padding: "6px 14px",
-                  fontSize: "12px",
-                  fontFamily: "var(--fd)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "var(--t4)",
-                  background: "transparent",
-                  border: "1px solid var(--t4)",
-                  borderRadius: "4px",
-                  cursor: isFetching ? "wait" : "pointer",
-                  opacity: isFetching ? 0.6 : 1,
-                }}
               >
                 {isFetching ? "Refreshing…" : "Refresh"}
               </button>
