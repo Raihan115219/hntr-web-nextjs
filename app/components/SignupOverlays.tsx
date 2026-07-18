@@ -59,8 +59,6 @@ declare global {
   }
 }
 
-type SignupPurchasePhase = "wallet" | "loading";
-
 export default function SignupOverlays() {
   const { address, isConnected } = useAccount();
   const { connectWallet } = useConnectWallet();
