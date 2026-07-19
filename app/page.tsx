@@ -297,37 +297,75 @@ export default function HomePage() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSlideWidth, setMobileSlideWidth] = useState(0);
 
-  const { data: openSeaListings } = useOpenSeaMarketplaceListings(3);
+  const { data: baycListings } = useOpenSeaListings("boredapeyachtclub", 1);
   const { data: pudgyListings } = useOpenSeaListings("pudgypenguins", 1);
+  const { data: punksListings } = useOpenSeaListings("cryptopunks", 1);
+  const { data: azukiListings } = useOpenSeaListings("azuki", 1);
+  const { data: openSeaListings } = useOpenSeaMarketplaceListings(3);
   const { data: openSeaSales } = useOpenSeaMarketplaceSales(3);
   const { data: openSeaMarket } = useOpenSeaHomeMarket(marketTimeFrame);
 
   const strategyPools = useMemo(() => {
-    const bySlug = new Map<string, { tokenId: string; priceEth: number }>();
-    for (const listing of [...(openSeaListings || []), ...(pudgyListings || [])]) {
-      if (!listing.tokenId || listing.priceEth <= 0) continue;
-      if (!bySlug.has(listing.collection)) {
-        bySlug.set(listing.collection, {
-          tokenId: listing.tokenId,
-          priceEth: listing.priceEth,
-        });
-      }
-    }
+    const liveBySlug: Record<
+      string,
+      { tokenId: string; priceEth: number; imageUrl: string; openseaUrl: string } | undefined
+    > = {
+      boredapeyachtclub: baycListings?.[0]
+        ? {
+            tokenId: baycListings[0].tokenId,
+            priceEth: baycListings[0].priceEth,
+            imageUrl: baycListings[0].imageUrl,
+            openseaUrl: baycListings[0].openseaUrl,
+          }
+        : undefined,
+      pudgypenguins: pudgyListings?.[0]
+        ? {
+            tokenId: pudgyListings[0].tokenId,
+            priceEth: pudgyListings[0].priceEth,
+            imageUrl: pudgyListings[0].imageUrl,
+            openseaUrl: pudgyListings[0].openseaUrl,
+          }
+        : undefined,
+      cryptopunks: punksListings?.[0]
+        ? {
+            tokenId: punksListings[0].tokenId,
+            priceEth: punksListings[0].priceEth,
+            imageUrl: punksListings[0].imageUrl,
+            openseaUrl: punksListings[0].openseaUrl,
+          }
+        : undefined,
+      azuki: azukiListings?.[0]
+        ? {
+            tokenId: azukiListings[0].tokenId,
+            priceEth: azukiListings[0].priceEth,
+            imageUrl: azukiListings[0].imageUrl,
+            openseaUrl: azukiListings[0].openseaUrl,
+          }
+        : undefined,
+    };
 
     return STRATEGY_POOLS.map((pool) => {
-      const live = bySlug.get(pool.slug);
+      const live = liveBySlug[pool.slug];
       const tokenId = live?.tokenId || pool.fallbackTokenId;
-      const targetEth = live?.priceEth || pool.fallbackTargetEth;
+      const targetEth = live?.priceEth && live.priceEth > 0 ? live.priceEth : pool.fallbackTargetEth;
+      const img = live?.imageUrl || pool.img;
+      const progress =
+        targetEth > 0 ? Math.min(100, Number(((pool.raisedEth / targetEth) * 100).toFixed(1))) : pool.progress;
+
       return {
         ...pool,
+        img,
         tokenId,
+        displayName: pool.name,
         targetEth,
         targetLabel: targetEth.toFixed(2),
         targetUsd: formatUsd(targetEth),
         raisedUsd: formatUsd(pool.raisedEth),
+        progress,
+        openseaUrl: live?.openseaUrl || `https://opensea.io/collection/${pool.slug}`,
       };
     });
-  }, [openSeaListings, pudgyListings]);
+  }, [baycListings, pudgyListings, punksListings, azukiListings]);
 
   const listingCards = useMemo(() => {
     if (!openSeaListings?.length) return FALLBACK_LISTING_CARDS;
@@ -1470,14 +1508,14 @@ export default function HomePage() {
                   <div className="npc" key={`${pool.slug}-${pool.tokenId}`}>
                     <div className="npc-row">
                       <div className="npc-art" onClick={() => router.push("/pool/54587")} style={{ cursor: "pointer" }}>
-                        <img src={pool.img} alt={pool.name} />
+                        <img src={pool.img} alt={`${pool.displayName} #${pool.tokenId}`} />
                         <div className="npc-pool">POOL #{pool.tokenId}</div>
                       </div>
                       <div className="npc-body">
                         <div className="npc-head">
                           <div>
                             <div className="npc-name">
-                              {pool.name} <span>#{pool.tokenId}</span>
+                              {pool.displayName} <span>#{pool.tokenId}</span>
                             </div>
                             <div className="npc-tags">
                               {pool.tags.map((tag) => (
