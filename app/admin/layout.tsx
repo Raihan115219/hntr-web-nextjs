@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { getStoredAdminAuth, clearStoredAdminAuth } from "@/lib/admin/auth";
 import { adminApi } from "@/lib/admin/api";
+import { clearStoredAuth } from "@/lib/api";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -12,6 +13,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Admin session must not reuse the member wallet JWT.
+    clearStoredAuth();
+
     const auth = getStoredAdminAuth();
     if (!auth && pathname !== "/admin/login") {
       router.push("/admin/login");
@@ -63,6 +67,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             onClick={() => {
               adminApi.logout();
               clearStoredAdminAuth();
+              clearStoredAuth();
               router.push("/admin/login");
             }}
             className="px-4 py-2 bg-[#1a1a1a] hover:bg-red-500/10 hover:text-red-500 border border-[#222] rounded-lg text-xs font-bold transition-all"

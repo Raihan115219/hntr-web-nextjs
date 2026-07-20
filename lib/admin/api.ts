@@ -256,13 +256,35 @@ export const adminApi = {
       PaginatedResult<OverdueWallet> & {
         totalUnclaimedUSD: number;
         configured?: boolean;
+        companyWallet?: string;
+        tokenAddress?: string;
         filter?: OverdueClaimFilter;
         counts?: { all: number; never: number; overdue_30d: number };
       }
     >(`/api/admin/commissions/overdue${qs({ token, page, limit, filter })}`),
 
+  getCompanyWallet: () =>
+    adminRequest<{ address: string; backendSignerConfigured: boolean }>("/api/admin/company-wallet"),
+
   claimCommissions: (walletAddresses: string[], token = "USDT") =>
     adminRequest("/api/admin/commissions/claim", { method: "POST", body: { walletAddresses, token } }),
+
+  recordCompanyWithdraw: (params: {
+    walletAddress: string;
+    token: string;
+    txHash: string;
+    amount: number;
+  }) =>
+    adminRequest<{
+      id: string;
+      walletAddress: string;
+      txHash: string;
+      token: string;
+      amount: number;
+      type: "COMPANY_WALLET_WITHDRAWN";
+      status: string;
+      duplicate?: boolean;
+    }>("/api/admin/commissions/record-withdraw", { method: "POST", body: params }),
 
   getPools: (page = 1, limit = 50) =>
     adminRequest<PaginatedResult<AdminPool>>(`/api/admin/pools${qs({ page, limit })}`),

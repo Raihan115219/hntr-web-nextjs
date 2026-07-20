@@ -27,11 +27,17 @@ export const hntrMembershipAbi = parseAbi([
   "function purchaseMembership(address user, uint8 tier, address[] uplines, uint8[] ranks, address token, uint256 deadline, bytes signature)",
   "function upgradeMembership(address user, uint8 newTier, address[] uplines, uint8[] ranks, address token, uint256 deadline, bytes signature)",
   "function withdrawCommissions(address user, address token)",
+  "function withdrawCompanyWallet(address user, address token)",
+  "function companyWallet() view returns (address)",
+  "function getOverdueWallets(address token) view returns (address[])",
+  "function withdrawableCommissions(address user, address token) view returns (uint256)",
+  "function lastClaimedAt(address user, address token) view returns (uint256)",
   "function tierPrices(uint8 tier) view returns (uint256)",
   "function getUser(address user) view returns (uint8 tier, uint256 joinedAt)",
   "event MembershipPurchased(address indexed user, uint8 tier, uint256 amount, address token)",
   "event MembershipUpgraded(address indexed user, uint8 oldTier, uint8 newTier, uint256 amountPaid, address token)",
   "event CommissionWithdrawn(address indexed user, uint256 amount, address token)",
+  "event CompanyWalletWithdrawn(address indexed user, address indexed token, uint256 amount, address indexed companyWallet)",
 ]);
 
 export const TIERS = [

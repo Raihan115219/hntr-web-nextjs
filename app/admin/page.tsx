@@ -23,6 +23,13 @@ import {
   PaginationMeta,
   formatUsd,
 } from "@/lib/admin/api";
+import { clearStoredAuth } from "@/lib/api";
+import { useConnectWallet } from "@/lib/useConnectWallet";
+import { CONTRACT_ADDRESS, TOKEN_ADDRESSES, hntrMembershipAbi } from "@/lib/contracts";
+import { config } from "@/lib/wagmi";
+import { ConnectKitButton } from "connectkit";
+import { useAccount, useDisconnect } from "wagmi";
+import { writeContract, waitForTransactionReceipt } from "wagmi/actions";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -411,7 +418,7 @@ function OverviewTab({ notify }: { notify: (type: "success" | "error" | "info", 
             <td className="px-6 py-4 text-sm font-medium">{row.type}</td>
             <td className="px-6 py-4 text-sm text-gray-400">{row.user}</td>
             <td className={`px-6 py-4 text-sm font-bold ${row.type.includes("Commission") ? "text-green-500" : "text-[#f50]"}`}>
-              {row.type.includes("Withdrawal") ? "-" : "+"}
+              {row.type.includes("Withdrawal") || row.type.includes("Admin") ? "-" : "+"}
               {formatUsd(row.amount)}
             </td>
             <td className="px-6 py-4 text-sm">
@@ -732,6 +739,7 @@ function TransactionsTabContent({ notify }: { notify: (type: "success" | "error"
   }, [filter, limit]);
 
   const typeLabel = (t: string) => {
+    if (t === "COMPANY_WALLET_WITHDRAWN") return "Admin Withdrawal";
     if (t === "PURCHASE") return "Purchase";
     if (t === "UPGRADE") return "Upgrade";
     if (t.includes("WITHDRAW") || t === "COMMISSION_CLAIM") return "Withdrawal";
@@ -811,6 +819,10 @@ function UnclaimedTabContent({
   notify: (type: "success" | "error" | "info", message: string) => void;
   onTotalChange?: (total: number) => void;
 }) {
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { connectWallet } = useConnectWallet();
+
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<"USDT" | "USDC">("USDT");
   const [claimFilter, setClaimFilter] = useState<OverdueClaimFilter>("all");
@@ -819,9 +831,18 @@ function UnclaimedTabContent({
   const [limit, setLimit] = useState(10);
   const [totalUnclaimed, setTotalUnclaimed] = useState(0);
   const [counts, setCounts] = useState({ all: 0, never: 0, overdue_30d: 0 });
-  const [configured, setConfigured] = useState(true);
+  const [companyWallet, setCompanyWallet] = useState<string>("");
+  const [tokenAddress, setTokenAddress] = useState<string>("");
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  const connectedIsCompany =
+    !!address && !!companyWallet && address.toLowerCase() === companyWallet.toLowerCase();
+
+  useEffect(() => {
+    // Never reuse member wallet JWT while operating company-wallet withdraws.
+    clearStoredAuth();
+  }, []);
 
   const load = async (
     page = 1,
@@ -831,14 +852,20 @@ function UnclaimedTabContent({
   ) => {
     setLoading(true);
     try {
-      const data = await adminApi.getOverdueCommissions(nextToken, page, pageLimit, nextFilter);
+      const [data, company] = await Promise.all([
+        adminApi.getOverdueCommissions(nextToken, page, pageLimit, nextFilter),
+        adminApi.getCompanyWallet().catch(() => null),
+      ]);
       setRows(data.items || []);
       setPagination(data.pagination);
       const total = data.totalUnclaimedUSD || 0;
       setTotalUnclaimed(total);
       onTotalChange?.(total);
-      setConfigured(data.configured !== false);
       if (data.counts) setCounts(data.counts);
+      if (data.companyWallet) setCompanyWallet(data.companyWallet);
+      else if (company?.address) setCompanyWallet(company.address);
+      if (data.tokenAddress) setTokenAddress(data.tokenAddress);
+      else setTokenAddress(TOKEN_ADDRESSES[nextToken] || "");
     } catch (err) {
       notify("error", err instanceof AdminApiError ? err.message : "Failed to load overdue wallets");
     } finally {
@@ -851,20 +878,56 @@ function UnclaimedTabContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, claimFilter]);
 
-  const handleWithdraw = async (walletAddress: string) => {
-    setWithdrawing(walletAddress);
+  const ensureCompanyWallet = async () => {
+    clearStoredAuth();
+    if (!companyWallet) {
+      throw new Error("On-chain company wallet address is unknown.");
+    }
+    let connected = address;
+    if (!isConnected || !connected) {
+      connected = await connectWallet();
+    }
+    if (connected.toLowerCase() !== companyWallet.toLowerCase()) {
+      throw new Error(
+        `Connected ${connected.slice(0, 6)}…${connected.slice(-4)} is not the company wallet (${companyWallet.slice(0, 6)}…${companyWallet.slice(-4)}). Switch account in your wallet.`,
+      );
+    }
+    return connected;
+  };
+
+  const withdrawOne = async (userWallet: string, amount: number) => {
+    const tokenAddr = (tokenAddress || TOKEN_ADDRESSES[token]) as `0x${string}`;
+    if (!CONTRACT_ADDRESS) throw new Error("Contract address is not configured.");
+    if (!tokenAddr) throw new Error(`${token} token address is not configured.`);
+
+    await ensureCompanyWallet();
+
+    const txHash = await writeContract(config, {
+      address: CONTRACT_ADDRESS,
+      abi: hntrMembershipAbi,
+      functionName: "withdrawCompanyWallet",
+      args: [userWallet as `0x${string}`, tokenAddr],
+    });
+    await waitForTransactionReceipt(config, { hash: txHash });
+
+    await adminApi.recordCompanyWithdraw({
+      walletAddress: userWallet,
+      token: tokenAddr,
+      txHash,
+      amount,
+    });
+
+    return txHash;
+  };
+
+  const handleWithdraw = async (row: OverdueWallet) => {
+    setWithdrawing(row.walletAddress);
     try {
-      const result = await adminApi.claimCommissions([walletAddress], token);
-      const succeeded = (result as { succeeded: number }).succeeded ?? 0;
-      if (succeeded > 0) {
-        notify("success", `Withdrew commissions for ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`);
-        await load(pagination?.page || 1, token, limit, claimFilter);
-      } else {
-        const err = (result as { results?: { error?: string }[] }).results?.[0]?.error;
-        notify("error", err || "Withdraw failed");
-      }
+      const txHash = await withdrawOne(row.walletAddress, row.unclaimedUSD);
+      notify("success", `Admin withdrawal recorded · ${txHash.slice(0, 10)}…`);
+      await load(pagination?.page || 1, token, limit, claimFilter);
     } catch (err) {
-      notify("error", err instanceof AdminApiError ? err.message : "Withdraw failed");
+      notify("error", err instanceof Error ? err.message : "Withdraw failed");
     } finally {
       setWithdrawing(null);
     }
@@ -873,18 +936,25 @@ function UnclaimedTabContent({
   const handleWithdrawAll = async () => {
     if (rows.length === 0) return;
     setBulkLoading(true);
+    let succeeded = 0;
+    let failed = 0;
     try {
-      const addresses = rows.map((r) => r.walletAddress);
-      const result = await adminApi.claimCommissions(addresses, token);
-      const succeeded = (result as { succeeded: number }).succeeded ?? 0;
-      const failed = (result as { failed: number }).failed ?? 0;
+      await ensureCompanyWallet();
+      for (const row of rows) {
+        try {
+          await withdrawOne(row.walletAddress, row.unclaimedUSD);
+          succeeded += 1;
+        } catch {
+          failed += 1;
+        }
+      }
       notify(
         succeeded > 0 ? "success" : "error",
         `Withdrew ${succeeded} wallet(s)${failed ? `, ${failed} failed` : ""}.`,
       );
       await load(1, token, limit, claimFilter);
     } catch (err) {
-      notify("error", err instanceof AdminApiError ? err.message : "Bulk withdraw failed");
+      notify("error", err instanceof Error ? err.message : "Bulk withdraw failed");
     } finally {
       setBulkLoading(false);
     }
@@ -902,10 +972,53 @@ function UnclaimedTabContent({
         <div>
           <h3 className="text-lg font-bold">Unclaimed Wallets</h3>
           <p className="text-xs text-gray-500 mt-1">
-            Overdue wallets from on-chain <span className="font-mono text-gray-400">getOverdueWallets</span>
+            Connect the <span className="text-gray-300 font-bold">company wallet</span> via ConnectKit to sign{" "}
+            <span className="font-mono text-gray-400">withdrawCompanyWallet</span> (member auth is cleared).
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <ConnectKitButton.Custom>
+            {({ isConnected: ckConnected, show, truncatedAddress, ensName }) => (
+              <button
+                onClick={async () => {
+                  clearStoredAuth();
+                  if (ckConnected) {
+                    show?.();
+                    return;
+                  }
+                  try {
+                    await connectWallet();
+                  } catch (err) {
+                    notify("error", err instanceof Error ? err.message : "Wallet connect failed");
+                  }
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  connectedIsCompany
+                    ? "bg-green-500/10 border-green-500/40 text-green-400"
+                    : ckConnected
+                      ? "bg-yellow-500/10 border-yellow-500/40 text-yellow-400"
+                      : "bg-[#1a1a1a] border-[#333] text-white hover:border-[#f50]"
+                }`}
+              >
+                {connectedIsCompany
+                  ? `Company · ${ensName ?? truncatedAddress}`
+                  : ckConnected
+                    ? `Wrong wallet · ${ensName ?? truncatedAddress}`
+                    : "Connect Company Wallet"}
+              </button>
+            )}
+          </ConnectKitButton.Custom>
+          {isConnected ? (
+            <button
+              onClick={() => {
+                disconnect();
+                clearStoredAuth();
+              }}
+              className="px-3 py-2 rounded-xl bg-[#1a1a1a] border border-[#333] text-[10px] font-bold text-gray-400 hover:text-white"
+            >
+              Disconnect
+            </button>
+          ) : null}
           <div className="flex bg-[#111] border border-[#222] rounded-xl overflow-hidden">
             {(["USDT", "USDC"] as const).map((t) => (
               <button
@@ -928,12 +1041,30 @@ function UnclaimedTabContent({
           </button>
           <button
             onClick={handleWithdrawAll}
-            disabled={loading || bulkLoading || !!withdrawing || rows.length === 0}
+            disabled={loading || bulkLoading || !!withdrawing || rows.length === 0 || !connectedIsCompany}
             className="px-4 py-2 rounded-xl bg-[#f50] text-xs font-bold disabled:opacity-50"
           >
             {bulkLoading ? "Withdrawing..." : "Withdraw Page"}
           </button>
         </div>
+      </div>
+
+      <div className="bg-[#111] border border-[#222] rounded-2xl p-4 space-y-2">
+        <div className="flex justify-between items-center gap-3 flex-wrap">
+          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            On-chain company wallet
+          </span>
+          <span className="text-xs font-mono text-gray-300">
+            {companyWallet ? `${companyWallet.slice(0, 10)}…${companyWallet.slice(-8)}` : "Loading…"}
+          </span>
+        </div>
+        {!connectedIsCompany ? (
+          <p className="text-[11px] text-yellow-500/90">
+            Connect the company wallet above before withdrawing. Member wallet auth tokens are cleared on this page.
+          </p>
+        ) : (
+          <p className="text-[11px] text-green-500/90">Company wallet connected — withdraws will be signed in your wallet.</p>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -966,74 +1097,68 @@ function UnclaimedTabContent({
         <span className="text-xl font-bold text-green-500">{formatUsd(totalUnclaimed)}</span>
       </div>
 
-      {!configured ? (
-        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-6 text-center text-sm text-yellow-500">
-          Company wallet is not configured on the backend — overdue queries require the company signer.
-        </div>
-      ) : (
-        <AdminTable
-          headers={["User", "Wallet", "Status", "Last Claim", "Unclaimed", "Action"]}
-          pagination={pagination}
-          onPageChange={(p) => load(p, token, limit, claimFilter)}
-          onPageSizeChange={(size) => {
-            setLimit(size);
-            load(1, token, size, claimFilter);
-          }}
-        >
-          {loading ? (
-            <tr>
-              <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
-                Loading overdue wallets from chain...
+      <AdminTable
+        headers={["User", "Wallet", "Status", "Last Claim", "Unclaimed", "Action"]}
+        pagination={pagination}
+        onPageChange={(p) => load(p, token, limit, claimFilter)}
+        onPageSizeChange={(size) => {
+          setLimit(size);
+          load(1, token, size, claimFilter);
+        }}
+      >
+        {loading ? (
+          <tr>
+            <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+              Loading overdue wallets from chain...
+            </td>
+          </tr>
+        ) : rows.length === 0 ? (
+          <tr>
+            <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+              No overdue wallets found
+            </td>
+          </tr>
+        ) : (
+          rows.map((w) => (
+            <tr key={w.walletAddress} className="hover:bg-[#1a1a1a] transition-colors">
+              <td className="px-6 py-4 text-sm font-bold">{w.username}</td>
+              <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                {w.walletAddress.slice(0, 6)}…{w.walletAddress.slice(-4)}
+              </td>
+              <td className="px-6 py-4">
+                <span
+                  className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${
+                    w.claimStatus === "never"
+                      ? "bg-yellow-500/10 text-yellow-500"
+                      : "bg-[#f50]/10 text-[#f50]"
+                  }`}
+                >
+                  {statusLabel(w.claimStatus)}
+                </span>
+              </td>
+              <td className="px-6 py-4 text-xs text-gray-500">
+                {w.claimStatus === "never"
+                  ? "—"
+                  : w.daysSinceClaim != null
+                    ? `${w.daysSinceClaim}d ago`
+                    : w.lastClaimedAt
+                      ? new Date(w.lastClaimedAt).toLocaleDateString()
+                      : "—"}
+              </td>
+              <td className="px-6 py-4 text-sm font-bold text-green-500">{formatUsd(w.unclaimedUSD)}</td>
+              <td className="px-6 py-4">
+                <button
+                  onClick={() => handleWithdraw(w)}
+                  disabled={!!withdrawing || bulkLoading || !connectedIsCompany}
+                  className="px-4 py-2 rounded-lg bg-[#1a1a1a] border border-[#333] hover:border-[#f50] hover:text-[#f50] text-xs font-bold transition-all disabled:opacity-50"
+                >
+                  {withdrawing === w.walletAddress ? "Withdrawing..." : "Withdraw"}
+                </button>
               </td>
             </tr>
-          ) : rows.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
-                No overdue wallets found
-              </td>
-            </tr>
-          ) : (
-            rows.map((w) => (
-              <tr key={w.walletAddress} className="hover:bg-[#1a1a1a] transition-colors">
-                <td className="px-6 py-4 text-sm font-bold">{w.username}</td>
-                <td className="px-6 py-4 text-xs font-mono text-gray-500">
-                  {w.walletAddress.slice(0, 6)}…{w.walletAddress.slice(-4)}
-                </td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${
-                      w.claimStatus === "never"
-                        ? "bg-yellow-500/10 text-yellow-500"
-                        : "bg-[#f50]/10 text-[#f50]"
-                    }`}
-                  >
-                    {statusLabel(w.claimStatus)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-xs text-gray-500">
-                  {w.claimStatus === "never"
-                    ? "—"
-                    : w.daysSinceClaim != null
-                      ? `${w.daysSinceClaim}d ago`
-                      : w.lastClaimedAt
-                        ? new Date(w.lastClaimedAt).toLocaleDateString()
-                        : "—"}
-                </td>
-                <td className="px-6 py-4 text-sm font-bold text-green-500">{formatUsd(w.unclaimedUSD)}</td>
-                <td className="px-6 py-4">
-                  <button
-                    onClick={() => handleWithdraw(w.walletAddress)}
-                    disabled={!!withdrawing || bulkLoading}
-                    className="px-4 py-2 rounded-lg bg-[#1a1a1a] border border-[#333] hover:border-[#f50] hover:text-[#f50] text-xs font-bold transition-all disabled:opacity-50"
-                  >
-                    {withdrawing === w.walletAddress ? "Withdrawing..." : "Withdraw"}
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </AdminTable>
-      )}
+          ))
+        )}
+      </AdminTable>
     </div>
   );
 }
