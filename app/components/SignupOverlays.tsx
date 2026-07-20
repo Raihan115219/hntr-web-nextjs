@@ -5,7 +5,7 @@ import { useAccount } from "wagmi";
 import { api, ApiError } from "../../lib/api";
 import { ensureAuth } from "../../lib/auth";
 import { TIERS } from "../../lib/contracts";
-import { handleAppError } from "../../lib/errors";
+import { handleAppError, resolveAppError } from "../../lib/errors";
 import { purchaseOrUpgradeTier } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
 
@@ -165,7 +165,7 @@ export default function SignupOverlays() {
           window.location.assign("/network");
         }, 700);
       } catch (error) {
-        const message = formatPurchaseError(error);
+        const message = resolveAppError(error, "Purchase failed").sub;
         setPurchaseStatus({ state: "error", message });
         notifyError("Purchase failed", error);
       } finally {
