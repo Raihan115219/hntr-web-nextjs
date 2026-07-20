@@ -15,7 +15,23 @@ export function AdminCard({ title, value, subValue, icon }: { title: string, val
   );
 }
 
-export function AdminTable({ headers, children, title }: { headers: string[], children: React.ReactNode, title?: string }) {
+export function AdminTable({
+  headers,
+  children,
+  title,
+  pagination,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 20, 50],
+}: {
+  headers: string[];
+  children: React.ReactNode;
+  title?: string;
+  pagination?: PaginationMeta | null;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (limit: number) => void;
+  pageSizeOptions?: number[];
+}) {
   return (
     <div className="bg-[#111] border border-[#222] rounded-2xl overflow-hidden shadow-sm">
       {title && (
@@ -34,10 +50,81 @@ export function AdminTable({ headers, children, title }: { headers: string[], ch
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#222]">
-            {children}
-          </tbody>
+          <tbody className="divide-y divide-[#222]">{children}</tbody>
         </table>
+      </div>
+      {pagination && onPageChange && (
+        <AdminPagination
+          pagination={pagination}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          pageSizeOptions={pageSizeOptions}
+        />
+      )}
+    </div>
+  );
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export function AdminPagination({
+  pagination,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 20, 50],
+}: {
+  pagination: PaginationMeta;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (limit: number) => void;
+  pageSizeOptions?: number[];
+}) {
+  const start = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const end = Math.min(pagination.page * pagination.limit, pagination.total);
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-[#222] bg-[#0d0d0d]">
+      <span className="text-xs text-gray-500">
+        {pagination.total === 0
+          ? "No results"
+          : `Showing ${start}–${end} of ${pagination.total} · Page ${pagination.page} of ${Math.max(pagination.totalPages, 1)}`}
+      </span>
+      <div className="flex items-center gap-3">
+        {onPageSizeChange && (
+          <select
+            value={pagination.limit}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="bg-[#1a1a1a] border border-[#333] rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-[#f50]"
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size} / page
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="flex gap-2">
+          <button
+            disabled={!pagination.hasPrev}
+            onClick={() => onPageChange(pagination.page - 1)}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333] disabled:opacity-30 hover:bg-[#222] transition-colors"
+          >
+            Prev
+          </button>
+          <button
+            disabled={!pagination.hasNext}
+            onClick={() => onPageChange(pagination.page + 1)}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-[#333] disabled:opacity-30 hover:bg-[#222] transition-colors"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -96,13 +183,16 @@ export interface Notification {
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const notify = (type: "success" | "error" | "info", message: string) => {
+  const notify = React.useCallback((type: "success" | "error" | "info", message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setNotifications(prev => [...prev, { id, type, message }]);
+    setNotifications((prev) => {
+      if (prev.some((n) => n.type === type && n.message === message)) return prev;
+      return [...prev, { id, type, message }];
+    });
     setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifications((current) => current.filter((n) => n.id !== id));
     }, 4000);
-  };
+  }, []);
 
   return { notifications, notify };
 }

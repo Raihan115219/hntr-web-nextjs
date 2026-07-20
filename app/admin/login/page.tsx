@@ -2,25 +2,25 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { adminApi, AdminApiError } from "@/lib/admin/api";
 
 export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple placeholder logic for gating
-    if (password === "hntr-admin-2026") {
-      // In a real app, we would authenticate with the backend
-      window.localStorage.setItem("hntr_auth", JSON.stringify({
-        token: "admin-token",
-        walletAddress: "0xADMIN",
-        expiresAt: Date.now() + 3600000
-      }));
+    setError("");
+    setLoading(true);
+    try {
+      await adminApi.login(password);
       router.push("/admin");
-    } else {
-      setError("Invalid password");
+    } catch (err) {
+      setError(err instanceof AdminApiError ? err.message : "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -43,7 +43,8 @@ export default function AdminLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-[#1a1a1a] border border-[#333] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#f50] transition-colors"
+              disabled={loading}
+              className="w-full bg-[#1a1a1a] border border-[#333] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#f50] transition-colors disabled:opacity-50"
             />
           </div>
 
@@ -51,14 +52,15 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            className="w-full bg-[#f50] hover:bg-[#ff6600] text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]"
+            disabled={loading || !password}
+            className="w-full bg-[#f50] hover:bg-[#ff6600] disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-orange-500/20 active:scale-[0.98]"
           >
-            Authenticate
+            {loading ? "Authenticating..." : "Authenticate"}
           </button>
         </form>
-        
+
         <div className="mt-8 pt-6 border-t border-[#222] text-center">
-          <button 
+          <button
             onClick={() => router.push("/")}
             className="text-gray-500 hover:text-white text-sm transition-colors"
           >
