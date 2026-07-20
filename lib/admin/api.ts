@@ -108,16 +108,50 @@ export interface AdminActivity {
 export interface LeadershipPreview {
   poolBalanceUSD: number;
   poolTokens: { symbol: string; balance: number }[];
+  leadershipWallet?: string;
   eligibleCount: number;
-  eligibleUsers: { username: string; rank: string; shares: number }[];
+  eligibleUsers: {
+    username: string;
+    rank: string;
+    shares: number;
+    walletAddress?: string;
+    estimatedPayoutUSD?: number;
+  }[];
   totalShares: number;
+}
+
+export interface AdminWalletLedgerEntry {
+  id: string;
+  direction: "IN" | "OUT";
+  type: string;
+  amount: number;
+  token: string;
+  counterparty?: string;
+  timestamp: string;
+  txHash: string;
+  blockNumber?: number;
+}
+
+export interface AdminWalletLedger {
+  walletKey: string;
+  walletAddress: string;
+  source: "blockchain" | "database";
+  totals: { inflow: number; outflow: number };
+  items: AdminWalletLedgerEntry[];
+  pagination: PaginationMeta;
 }
 
 export interface OverdueWallet {
   walletAddress: string;
   username: string;
   unclaimedUSD: number;
+  claimStatus?: "never" | "overdue_30d";
+  lastClaimedAt?: string | null;
+  daysSinceClaim?: number | null;
+  gracePeriodDays?: number;
 }
+
+export type OverdueClaimFilter = "all" | "never" | "overdue_30d";
 
 async function adminRequest<T = unknown>(
   path: string,
@@ -207,7 +241,7 @@ export const adminApi = {
   getWalletBalances: () => adminRequest<AdminWalletBalance[]>("/api/admin/wallets"),
 
   getWalletLedger: (walletKey: string, page = 1, limit = 20) =>
-    adminRequest<PaginatedResult<unknown>>(`/api/admin/wallets/${walletKey}/ledger${qs({ page, limit })}`),
+    adminRequest<AdminWalletLedger>(`/api/admin/wallets/${walletKey}/ledger${qs({ page, limit })}`),
 
   getLeadershipPreview: () => adminRequest<LeadershipPreview>("/api/admin/leadership/preview"),
 
@@ -217,10 +251,15 @@ export const adminApi = {
   distributeAchievement: () =>
     adminRequest("/api/admin/achievement/distribute", { method: "POST", body: {} }),
 
-  getOverdueCommissions: (token = "USDT", page = 1, limit = 10) =>
-    adminRequest<PaginatedResult<OverdueWallet> & { totalUnclaimedUSD: number; configured?: boolean }>(
-      `/api/admin/commissions/overdue${qs({ token, page, limit })}`,
-    ),
+  getOverdueCommissions: (token = "USDT", page = 1, limit = 10, filter: OverdueClaimFilter = "all") =>
+    adminRequest<
+      PaginatedResult<OverdueWallet> & {
+        totalUnclaimedUSD: number;
+        configured?: boolean;
+        filter?: OverdueClaimFilter;
+        counts?: { all: number; never: number; overdue_30d: number };
+      }
+    >(`/api/admin/commissions/overdue${qs({ token, page, limit, filter })}`),
 
   claimCommissions: (walletAddresses: string[], token = "USDT") =>
     adminRequest("/api/admin/commissions/claim", { method: "POST", body: { walletAddresses, token } }),

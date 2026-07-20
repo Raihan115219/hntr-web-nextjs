@@ -8,7 +8,6 @@ import {
   AdminModal,
   useNotifications,
   NotificationPortal,
-  AdminPagination,
 } from "@/components/admin/UI";
 import {
   adminApi,
@@ -16,9 +15,11 @@ import {
   AdminUser,
   AdminTransaction,
   AdminWalletBalance,
+  AdminWalletLedgerEntry,
   AdminActivity,
   LeadershipPreview,
   OverdueWallet,
+  OverdueClaimFilter,
   PaginationMeta,
   formatUsd,
 } from "@/lib/admin/api";
@@ -31,16 +32,11 @@ export default function AdminDashboard() {
   const [metricCards, setMetricCards] = useState<{ title: string; value: string | number; subValue?: string }[]>([]);
 
   const [isLeadershipModalOpen, setIsLeadershipModalOpen] = useState(false);
-  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
 
   const [leadershipPreview, setLeadershipPreview] = useState<LeadershipPreview | null>(null);
-  const [overdueWallets, setOverdueWallets] = useState<OverdueWallet[]>([]);
-  const [overduePagination, setOverduePagination] = useState<PaginationMeta | null>(null);
-  const [overdueLimit, setOverdueLimit] = useState(10);
   const [totalUnclaimed, setTotalUnclaimed] = useState(0);
-  const [selectedOverdue, setSelectedOverdue] = useState<Set<string>>(new Set());
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
@@ -80,9 +76,15 @@ export default function AdminDashboard() {
   const handleDistributeLeadership = async () => {
     setActionLoading(true);
     try {
-      await adminApi.distributeLeadership();
+      const result = await adminApi.distributeLeadership();
       setIsLeadershipModalOpen(false);
-      notify("success", "Leadership rewards distributed successfully.");
+      const paid = (result as { paid?: number }).paid ?? 0;
+      const failed = (result as { failed?: number }).failed ?? 0;
+      const month = (result as { month?: string }).month;
+      notify(
+        "success",
+        `Leadership cron ran${month ? ` for ${month}` : ""}: ${paid} paid${failed ? `, ${failed} failed` : ""}.`,
+      );
       loadMetrics();
     } catch (err) {
       notify("error", err instanceof AdminApiError ? err.message : "Leadership distribution failed");
@@ -99,48 +101,6 @@ export default function AdminDashboard() {
       setIsLeadershipModalOpen(true);
     } catch (err) {
       notify("error", err instanceof AdminApiError ? err.message : "Failed to load leadership preview");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const loadOverduePage = async (page = 1, limit = overdueLimit) => {
-    setActionLoading(true);
-    try {
-      const data = await adminApi.getOverdueCommissions("USDT", page, limit);
-      setOverdueWallets(data.items || []);
-      setOverduePagination(data.pagination);
-      setTotalUnclaimed(data.totalUnclaimedUSD || 0);
-      setSelectedOverdue((prev) => {
-        const next = new Set(prev);
-        (data.items || []).forEach((w) => next.add(w.walletAddress));
-        return next;
-      });
-    } catch (err) {
-      notify("error", err instanceof AdminApiError ? err.message : "Failed to load overdue commissions");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const openClaimModal = async () => {
-    setIsClaimModalOpen(true);
-    await loadOverduePage(1, overdueLimit);
-  };
-
-  const handleClaimCommissions = async () => {
-    const addresses = [...selectedOverdue];
-    if (addresses.length === 0) {
-      notify("info", "No wallets selected.");
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const result = await adminApi.claimCommissions(addresses, "USDT");
-      setIsClaimModalOpen(false);
-      notify("success", `Processed ${(result as { succeeded: number }).succeeded} commission claim(s).`);
-    } catch (err) {
-      notify("error", err instanceof AdminApiError ? err.message : "Claim failed");
     } finally {
       setActionLoading(false);
     }
@@ -187,12 +147,12 @@ export default function AdminDashboard() {
         )}
       </section>
 
-      <div className="flex border-b border-[#222]">
-        {["overview", "users", "transactions", "wallets"].map((tab) => (
+      <div className="flex border-b border-[#222] overflow-x-auto">
+        {["overview", "users", "transactions", "wallets", "unclaimed"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-4 text-sm font-semibold capitalize transition-all relative ${
+            className={`px-6 py-4 text-sm font-semibold capitalize transition-all relative whitespace-nowrap ${
               activeTab === tab ? "text-[#f50]" : "text-gray-400 hover:text-white"
             }`}
           >
@@ -216,6 +176,12 @@ export default function AdminDashboard() {
       )}
       {activeTab === "transactions" && <TransactionsTabContent notify={notify} />}
       {activeTab === "wallets" && <WalletsTabContent notify={notify} />}
+      {activeTab === "unclaimed" && (
+        <UnclaimedTabContent
+          notify={notify}
+          onTotalChange={setTotalUnclaimed}
+        />
+      )}
 
       <div className="space-y-6">
         <h3 className="text-lg font-bold">Quick Controls</h3>
@@ -225,15 +191,14 @@ export default function AdminDashboard() {
             disabled={actionLoading}
             className="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
           >
-            Distribute Leadership Monthly
+            Run Leadership Monthly Cron
           </button>
           <div className="space-y-2">
             <button
-              onClick={openClaimModal}
-              disabled={actionLoading}
-              className="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-white py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+              onClick={() => setActiveTab("unclaimed")}
+              className="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-white py-3 rounded-xl text-sm font-bold transition-all"
             >
-              Claim Unclaimed Commissions
+              View Unclaimed Wallets
             </button>
             <div className="text-[10px] text-center text-gray-500 font-bold uppercase tracking-wider">
               {formatUsd(totalUnclaimed)} Unclaimed Pending
@@ -252,21 +217,51 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <AdminModal isOpen={isLeadershipModalOpen} onClose={() => setIsLeadershipModalOpen(false)} title="Distribute Leadership Rewards">
+      <AdminModal isOpen={isLeadershipModalOpen} onClose={() => setIsLeadershipModalOpen(false)} title="Run Leadership Monthly Cron">
         <div className="space-y-6">
           <p className="text-gray-400 text-sm leading-relaxed">
-            This will calculate and distribute the monthly leadership pool shares to all eligible Hunter ranks and above.
+            Manually triggers the same job as the scheduled cron (1st of month, 00:00 UTC): distributes the
+            on-chain leadership wallet balance pro-rata by share weights (Hunter=1, Elite=3, Master=7, Legend=15).
           </p>
-          <div className="bg-[#1a1a1a] p-4 rounded-xl border border-[#222]">
-            <div className="flex justify-between mb-2">
+          <div className="bg-[#1a1a1a] p-4 rounded-xl border border-[#222] space-y-3">
+            <div className="flex justify-between">
               <span className="text-xs text-gray-500 font-bold uppercase">Pool Balance</span>
               <span className="text-sm font-bold text-white">{formatUsd(leadershipPreview?.poolBalanceUSD ?? 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-gray-500 font-bold uppercase">Eligible Users</span>
-              <span className="text-sm font-bold text-white">{leadershipPreview?.eligibleCount ?? 0} Hunters</span>
+              <span className="text-xs text-gray-500 font-bold uppercase">Total Shares</span>
+              <span className="text-sm font-bold text-white">{leadershipPreview?.totalShares ?? 0}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-500 font-bold uppercase">Eligible Users</span>
+              <span className="text-sm font-bold text-white">{leadershipPreview?.eligibleCount ?? 0}</span>
+            </div>
+            {leadershipPreview?.poolTokens?.length ? (
+              <div className="pt-2 border-t border-[#222] flex gap-3 flex-wrap">
+                {leadershipPreview.poolTokens.map((t) => (
+                  <span key={t.symbol} className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-[#111] px-2 py-1 rounded">
+                    {t.symbol}: {formatUsd(t.balance)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
+          {leadershipPreview?.eligibleUsers?.length ? (
+            <div className="max-h-48 overflow-y-auto bg-[#111] border border-[#222] rounded-xl">
+              <AdminTable headers={["User", "Rank", "Shares", "Est. Payout"]}>
+                {leadershipPreview.eligibleUsers.map((u) => (
+                  <tr key={u.username} className="hover:bg-[#1a1a1a]">
+                    <td className="px-4 py-2 text-sm font-bold">{u.username}</td>
+                    <td className="px-4 py-2 text-xs text-gray-400">{u.rank}</td>
+                    <td className="px-4 py-2 text-sm">{u.shares}</td>
+                    <td className="px-4 py-2 text-sm text-green-500 font-bold">{formatUsd(u.estimatedPayoutUSD ?? 0)}</td>
+                  </tr>
+                ))}
+              </AdminTable>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 text-center">No Hunter+ ranks currently eligible.</p>
+          )}
           <div className="flex gap-3">
             <button onClick={() => setIsLeadershipModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl bg-[#222] text-sm font-bold">
               Cancel
@@ -276,67 +271,7 @@ export default function AdminDashboard() {
               disabled={actionLoading}
               className="flex-1 px-6 py-3 rounded-xl bg-[#f50] text-sm font-bold disabled:opacity-50"
             >
-              {actionLoading ? "Processing..." : "Confirm Distribution"}
-            </button>
-          </div>
-        </div>
-      </AdminModal>
-
-      <AdminModal isOpen={isClaimModalOpen} onClose={() => setIsClaimModalOpen(false)} title="Process Unclaimed Commissions">
-        <div className="space-y-6">
-          {overdueWallets.length === 0 && !actionLoading ? (
-            <p className="text-gray-400 text-sm text-center py-4">No overdue wallets found.</p>
-          ) : (
-            <div className="bg-[#111] border border-[#222] rounded-2xl overflow-hidden">
-              <AdminTable headers={["User", "Unclaimed", "Select"]}>
-                {actionLoading ? (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-6 text-center text-gray-500 text-sm">Loading...</td>
-                  </tr>
-                ) : (
-                  overdueWallets.map((u) => (
-                    <tr key={u.walletAddress} className="hover:bg-[#1a1a1a]">
-                      <td className="px-6 py-3 text-sm font-bold">{u.username}</td>
-                      <td className="px-6 py-3 text-sm text-green-500 font-bold">{formatUsd(u.unclaimedUSD)}</td>
-                      <td className="px-6 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedOverdue.has(u.walletAddress)}
-                          onChange={(e) => {
-                            const next = new Set(selectedOverdue);
-                            if (e.target.checked) next.add(u.walletAddress);
-                            else next.delete(u.walletAddress);
-                            setSelectedOverdue(next);
-                          }}
-                          className="accent-[#f50]"
-                        />
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </AdminTable>
-              {overduePagination && (
-                <AdminPagination
-                  pagination={overduePagination}
-                  onPageChange={(p) => loadOverduePage(p, overdueLimit)}
-                  onPageSizeChange={(limit) => {
-                    setOverdueLimit(limit);
-                    loadOverduePage(1, limit);
-                  }}
-                />
-              )}
-            </div>
-          )}
-          <div className="flex gap-3">
-            <button onClick={() => setIsClaimModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl bg-[#222] text-sm font-bold">
-              Cancel
-            </button>
-            <button
-              onClick={handleClaimCommissions}
-              disabled={actionLoading || overdueWallets.length === 0}
-              className="flex-1 px-6 py-3 rounded-xl bg-[#f50] text-sm font-bold disabled:opacity-50"
-            >
-              {actionLoading ? "Processing..." : "Claim Selected"}
+              {actionLoading ? "Running cron..." : "Run Cron Now"}
             </button>
           </div>
         </div>
@@ -494,9 +429,12 @@ function WalletsTabContent({ notify }: { notify: (type: "success" | "error" | "i
   const [wallets, setWallets] = useState<AdminWalletBalance[]>([]);
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledgerWallet, setLedgerWallet] = useState<AdminWalletBalance | null>(null);
-  const [ledgerRows, setLedgerRows] = useState<{ id: string; type: string; amount: number; token?: string; timestamp: string; txHash?: string }[]>([]);
+  const [ledgerRows, setLedgerRows] = useState<AdminWalletLedgerEntry[]>([]);
+  const [ledgerTotals, setLedgerTotals] = useState<{ inflow: number; outflow: number }>({ inflow: 0, outflow: 0 });
+  const [ledgerSource, setLedgerSource] = useState<string>("");
   const [ledgerPagination, setLedgerPagination] = useState<PaginationMeta | null>(null);
   const [ledgerLimit, setLedgerLimit] = useState(10);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -514,12 +452,17 @@ function WalletsTabContent({ notify }: { notify: (type: "success" | "error" | "i
   }, []);
 
   const loadLedger = async (wallet: AdminWalletBalance, page = 1, limit = ledgerLimit) => {
+    setLedgerLoading(true);
     try {
       const data = await adminApi.getWalletLedger(wallet.key, page, limit);
-      setLedgerRows(data.items as typeof ledgerRows);
+      setLedgerRows(data.items || []);
       setLedgerPagination(data.pagination);
+      setLedgerTotals(data.totals || { inflow: 0, outflow: 0 });
+      setLedgerSource(data.source || "");
     } catch (err) {
       notify("error", err instanceof AdminApiError ? err.message : "Failed to load ledger");
+    } finally {
+      setLedgerLoading(false);
     }
   };
 
@@ -541,8 +484,17 @@ function WalletsTabContent({ notify }: { notify: (type: "success" | "error" | "i
             <div>
               <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">{w.name}</h4>
               <div className="text-3xl font-bold">
-                {w.balance.toLocaleString()} <span className="text-xs text-[#f50]">{w.symbol}</span>
+                {formatUsd(w.balance)}
               </div>
+              {w.tokens?.length ? (
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  {w.tokens.map((t) => (
+                    <span key={t.symbol} className="text-[10px] text-gray-500 font-bold uppercase">
+                      {t.symbol} {formatUsd(t.balance)}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="pt-4 border-t border-[#222]">
               <div className="text-[10px] text-gray-600 font-mono mb-4 break-all">{w.address}</div>
@@ -558,32 +510,62 @@ function WalletsTabContent({ notify }: { notify: (type: "success" | "error" | "i
       </div>
 
       <AdminModal isOpen={ledgerOpen} onClose={() => setLedgerOpen(false)} title={`Ledger: ${ledgerWallet?.name || "Wallet"}`}>
-        <AdminTable
-          headers={["Date", "Type", "Amount", "TX Hash"]}
-          pagination={ledgerPagination}
-          onPageChange={(p) => ledgerWallet && loadLedger(ledgerWallet, p, ledgerLimit)}
-          onPageSizeChange={(size) => {
-            setLedgerLimit(size);
-            if (ledgerWallet) loadLedger(ledgerWallet, 1, size);
-          }}
-        >
-          {ledgerRows.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-6 py-6 text-center text-gray-500 text-sm">No ledger entries</td>
-            </tr>
-          ) : (
-            ledgerRows.map((row) => (
-              <tr key={row.id} className="hover:bg-[#1a1a1a]">
-                <td className="px-6 py-3 text-xs text-gray-500">{new Date(row.timestamp).toLocaleString()}</td>
-                <td className="px-6 py-3 text-sm">{row.type}</td>
-                <td className="px-6 py-3 text-sm font-bold">{formatUsd(row.amount)}</td>
-                <td className="px-6 py-3 text-xs font-mono text-gray-500">
-                  {row.txHash ? `${row.txHash.slice(0, 8)}...` : "—"}
-                </td>
+        <div className="space-y-4">
+          <div className="flex gap-4 text-xs">
+            <div className="flex-1 bg-[#1a1a1a] border border-[#222] rounded-xl p-3">
+              <div className="text-gray-500 font-bold uppercase tracking-wider mb-1">Inflow</div>
+              <div className="text-green-500 font-bold text-lg">+{formatUsd(ledgerTotals.inflow)}</div>
+            </div>
+            <div className="flex-1 bg-[#1a1a1a] border border-[#222] rounded-xl p-3">
+              <div className="text-gray-500 font-bold uppercase tracking-wider mb-1">Outflow</div>
+              <div className="text-white font-bold text-lg">-{formatUsd(ledgerTotals.outflow)}</div>
+            </div>
+          </div>
+          {ledgerSource ? (
+            <div className="text-[10px] text-gray-600 uppercase tracking-widest font-bold">
+              Source: {ledgerSource}
+            </div>
+          ) : null}
+          <AdminTable
+            headers={["Date", "Dir", "Token", "Amount", "Counterparty", "TX"]}
+            pagination={ledgerPagination}
+            onPageChange={(p) => ledgerWallet && loadLedger(ledgerWallet, p, ledgerLimit)}
+            onPageSizeChange={(size) => {
+              setLedgerLimit(size);
+              if (ledgerWallet) loadLedger(ledgerWallet, 1, size);
+            }}
+          >
+            {ledgerLoading ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-6 text-center text-gray-500 text-sm">Loading ledger...</td>
               </tr>
-            ))
-          )}
-        </AdminTable>
+            ) : ledgerRows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-6 text-center text-gray-500 text-sm">No ledger entries</td>
+              </tr>
+            ) : (
+              ledgerRows.map((row) => (
+                <tr key={row.id} className="hover:bg-[#1a1a1a]">
+                  <td className="px-4 py-3 text-xs text-gray-500">{new Date(row.timestamp).toLocaleString()}</td>
+                  <td className={`px-4 py-3 text-xs font-bold ${row.direction === "IN" ? "text-green-500" : "text-[#f50]"}`}>
+                    {row.direction}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400">{row.token}</td>
+                  <td className={`px-4 py-3 text-sm font-bold ${row.direction === "IN" ? "text-green-500" : "text-white"}`}>
+                    {row.direction === "IN" ? "+" : "-"}
+                    {formatUsd(row.amount)}
+                  </td>
+                  <td className="px-4 py-3 text-[10px] font-mono text-gray-500">
+                    {row.counterparty ? `${row.counterparty.slice(0, 6)}…${row.counterparty.slice(-4)}` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-[10px] font-mono text-gray-500">
+                    {row.txHash ? `${row.txHash.slice(0, 8)}…` : "—"}
+                  </td>
+                </tr>
+              ))
+            )}
+          </AdminTable>
+        </div>
       </AdminModal>
     </>
   );
@@ -818,6 +800,240 @@ function TransactionsTabContent({ notify }: { notify: (type: "success" | "error"
           ))
         )}
       </AdminTable>
+    </div>
+  );
+}
+
+function UnclaimedTabContent({
+  notify,
+  onTotalChange,
+}: {
+  notify: (type: "success" | "error" | "info", message: string) => void;
+  onTotalChange?: (total: number) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<"USDT" | "USDC">("USDT");
+  const [claimFilter, setClaimFilter] = useState<OverdueClaimFilter>("all");
+  const [rows, setRows] = useState<OverdueWallet[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [limit, setLimit] = useState(10);
+  const [totalUnclaimed, setTotalUnclaimed] = useState(0);
+  const [counts, setCounts] = useState({ all: 0, never: 0, overdue_30d: 0 });
+  const [configured, setConfigured] = useState(true);
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const load = async (
+    page = 1,
+    nextToken = token,
+    pageLimit = limit,
+    nextFilter = claimFilter,
+  ) => {
+    setLoading(true);
+    try {
+      const data = await adminApi.getOverdueCommissions(nextToken, page, pageLimit, nextFilter);
+      setRows(data.items || []);
+      setPagination(data.pagination);
+      const total = data.totalUnclaimedUSD || 0;
+      setTotalUnclaimed(total);
+      onTotalChange?.(total);
+      setConfigured(data.configured !== false);
+      if (data.counts) setCounts(data.counts);
+    } catch (err) {
+      notify("error", err instanceof AdminApiError ? err.message : "Failed to load overdue wallets");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load(1, token, limit, claimFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, claimFilter]);
+
+  const handleWithdraw = async (walletAddress: string) => {
+    setWithdrawing(walletAddress);
+    try {
+      const result = await adminApi.claimCommissions([walletAddress], token);
+      const succeeded = (result as { succeeded: number }).succeeded ?? 0;
+      if (succeeded > 0) {
+        notify("success", `Withdrew commissions for ${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`);
+        await load(pagination?.page || 1, token, limit, claimFilter);
+      } else {
+        const err = (result as { results?: { error?: string }[] }).results?.[0]?.error;
+        notify("error", err || "Withdraw failed");
+      }
+    } catch (err) {
+      notify("error", err instanceof AdminApiError ? err.message : "Withdraw failed");
+    } finally {
+      setWithdrawing(null);
+    }
+  };
+
+  const handleWithdrawAll = async () => {
+    if (rows.length === 0) return;
+    setBulkLoading(true);
+    try {
+      const addresses = rows.map((r) => r.walletAddress);
+      const result = await adminApi.claimCommissions(addresses, token);
+      const succeeded = (result as { succeeded: number }).succeeded ?? 0;
+      const failed = (result as { failed: number }).failed ?? 0;
+      notify(
+        succeeded > 0 ? "success" : "error",
+        `Withdrew ${succeeded} wallet(s)${failed ? `, ${failed} failed` : ""}.`,
+      );
+      await load(1, token, limit, claimFilter);
+    } catch (err) {
+      notify("error", err instanceof AdminApiError ? err.message : "Bulk withdraw failed");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const statusLabel = (status?: OverdueWallet["claimStatus"]) => {
+    if (status === "never") return "Never claimed";
+    if (status === "overdue_30d") return "30d+ overdue";
+    return "—";
+  };
+
+  return (
+    <div className="space-y-6 pt-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold">Unclaimed Wallets</h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Overdue wallets from on-chain <span className="font-mono text-gray-400">getOverdueWallets</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex bg-[#111] border border-[#222] rounded-xl overflow-hidden">
+            {(["USDT", "USDC"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setToken(t)}
+                className={`px-4 py-2 text-xs font-bold transition-all ${
+                  token === t ? "bg-[#f50] text-white" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => load(pagination?.page || 1, token, limit, claimFilter)}
+            disabled={loading || !!withdrawing || bulkLoading}
+            className="px-4 py-2 rounded-xl bg-[#1a1a1a] border border-[#333] text-xs font-bold disabled:opacity-50"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={handleWithdrawAll}
+            disabled={loading || bulkLoading || !!withdrawing || rows.length === 0}
+            className="px-4 py-2 rounded-xl bg-[#f50] text-xs font-bold disabled:opacity-50"
+          >
+            {bulkLoading ? "Withdrawing..." : "Withdraw Page"}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { key: "all" as const, label: "All", count: counts.all },
+            { key: "never" as const, label: "Never claimed", count: counts.never },
+            { key: "overdue_30d" as const, label: "30d+ overdue", count: counts.overdue_30d },
+          ] as const
+        ).map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setClaimFilter(f.key)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+              claimFilter === f.key
+                ? "bg-[#f50]/10 border-[#f50] text-[#f50]"
+                : "bg-[#111] border-[#222] text-gray-400 hover:text-white"
+            }`}
+          >
+            {f.label} ({f.count})
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-[#111] border border-[#222] rounded-2xl p-4 flex justify-between items-center">
+        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+          Total Unclaimed ({token}
+          {claimFilter !== "all" ? ` · ${claimFilter === "never" ? "never claimed" : "30d+"}` : ""})
+        </span>
+        <span className="text-xl font-bold text-green-500">{formatUsd(totalUnclaimed)}</span>
+      </div>
+
+      {!configured ? (
+        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-6 text-center text-sm text-yellow-500">
+          Company wallet is not configured on the backend — overdue queries require the company signer.
+        </div>
+      ) : (
+        <AdminTable
+          headers={["User", "Wallet", "Status", "Last Claim", "Unclaimed", "Action"]}
+          pagination={pagination}
+          onPageChange={(p) => load(p, token, limit, claimFilter)}
+          onPageSizeChange={(size) => {
+            setLimit(size);
+            load(1, token, size, claimFilter);
+          }}
+        >
+          {loading ? (
+            <tr>
+              <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                Loading overdue wallets from chain...
+              </td>
+            </tr>
+          ) : rows.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                No overdue wallets found
+              </td>
+            </tr>
+          ) : (
+            rows.map((w) => (
+              <tr key={w.walletAddress} className="hover:bg-[#1a1a1a] transition-colors">
+                <td className="px-6 py-4 text-sm font-bold">{w.username}</td>
+                <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                  {w.walletAddress.slice(0, 6)}…{w.walletAddress.slice(-4)}
+                </td>
+                <td className="px-6 py-4">
+                  <span
+                    className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${
+                      w.claimStatus === "never"
+                        ? "bg-yellow-500/10 text-yellow-500"
+                        : "bg-[#f50]/10 text-[#f50]"
+                    }`}
+                  >
+                    {statusLabel(w.claimStatus)}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-xs text-gray-500">
+                  {w.claimStatus === "never"
+                    ? "—"
+                    : w.daysSinceClaim != null
+                      ? `${w.daysSinceClaim}d ago`
+                      : w.lastClaimedAt
+                        ? new Date(w.lastClaimedAt).toLocaleDateString()
+                        : "—"}
+                </td>
+                <td className="px-6 py-4 text-sm font-bold text-green-500">{formatUsd(w.unclaimedUSD)}</td>
+                <td className="px-6 py-4">
+                  <button
+                    onClick={() => handleWithdraw(w.walletAddress)}
+                    disabled={!!withdrawing || bulkLoading}
+                    className="px-4 py-2 rounded-lg bg-[#1a1a1a] border border-[#333] hover:border-[#f50] hover:text-[#f50] text-xs font-bold transition-all disabled:opacity-50"
+                  >
+                    {withdrawing === w.walletAddress ? "Withdrawing..." : "Withdraw"}
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </AdminTable>
+      )}
     </div>
   );
 }
