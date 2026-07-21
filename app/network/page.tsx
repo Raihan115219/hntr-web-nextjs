@@ -1,7 +1,8 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { BANNER_IMAGES } from "../components/banner-images";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { handleAppError } from "../../lib/errors";
 import {
@@ -17,8 +18,6 @@ import {
   type TransactionEntry,
   type NetworkTreeNode,
 } from "../../lib/rewards";
-
-type PlexusCanvas = HTMLCanvasElement & { __plexus?: boolean };
 
 declare global {
   interface Window {
@@ -110,7 +109,6 @@ function getPageNumbers(current: number, total: number) {
 
 export default function NetworkPage() {
   const router = useRouter();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [profileFlipped, setProfileFlipped] = useState(false);
   const { summary, refetchSummary, isFetching } = useDashboardData();
   const { data: txData } = useTransactionHistory(100);
@@ -251,25 +249,6 @@ export default function NetworkPage() {
     "No rank bonus yet — reach Scout or above to unlock one-time achievement bonuses.";
 
   useEffect(() => {
-    const canvas = canvasRef.current as PlexusCanvas | null;
-    if (canvas) delete canvas.__plexus;
-
-    const bannerScriptId = "net-banner-script";
-    document.getElementById(bannerScriptId)?.remove();
-
-    const bannerScript = document.createElement("script");
-    bannerScript.id = bannerScriptId;
-    bannerScript.src = `/assets/js/script-5.js?${Date.now()}`;
-    bannerScript.async = true;
-    document.body.appendChild(bannerScript);
-
-    return () => {
-      bannerScript.remove();
-      if (canvas) delete canvas.__plexus;
-    };
-  }, []);
-
-  useEffect(() => {
     const topoScriptId = "net-topo-script";
     document.getElementById(topoScriptId)?.remove();
 
@@ -349,7 +328,7 @@ export default function NetworkPage() {
       <div className="feed" id="feed-network">
         <div className="page-body">
           <div className="hero">
-            <canvas ref={canvasRef} id="netBannerCv"></canvas>
+            <img id="netBannerCv" src={BANNER_IMAGES.network} alt="" draggable={false} />
             <div className="net-banner-shade"></div>
             <div className="hero-mosaic" id="networkMosaic"></div>
             <div className="hero-content">

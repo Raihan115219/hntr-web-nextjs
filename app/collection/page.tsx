@@ -1,6 +1,7 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
+import CollectionHeroBanner from "../components/CollectionHeroBanner";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import {
@@ -500,16 +501,7 @@ export default function CollectionPage() {
     <MainLayout>
       <div className="feed" id="feed-collection">
         <div className="coll-body">
-          {/* COLLECTION HERO */}
-          <div className="hero" style={{ marginBottom: "18px" }}>
-            <div className="hero-mosaic" id="collMosaic"></div>
-            <div className="hero-content">
-              <div className="hero-title" style={{ fontSize: "20px", letterSpacing: ".08em" }}>
-                MY NFT COLLECTION
-              </div>
-              <div className="hero-sub">Real-time oversight across all your NFT positions.</div>
-            </div>
-          </div>
+          <CollectionHeroBanner />
 
             {/* STAT STRIP */}
             <div className="coll-stats">

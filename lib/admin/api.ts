@@ -230,7 +230,14 @@ export const adminApi = {
     adminRequest(`/api/admin/users/${encodeURIComponent(username)}/unblock`, { method: "POST", body: {} }),
 
   overrideUser: (username: string, tier?: string, rank?: string) =>
-    adminRequest(`/api/admin/users/${encodeURIComponent(username)}/override`, {
+    adminRequest<{
+      username: string;
+      tier: string;
+      rank: string;
+      previousTier?: string;
+      previousRank?: string;
+      message: string;
+    }>(`/api/admin/users/${encodeURIComponent(username)}/override`, {
       method: "POST",
       body: { tier, rank },
     }),
