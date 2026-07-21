@@ -126,7 +126,7 @@ export default function MainLayout({
       : pathname.startsWith("/pool/")
         ? "pooldetail"
         : pathname.slice(1);
-  const hideRightRail = currentPage === "network";
+  const hideRightRail = currentPage === "network" || currentPage === "webinar";
   const showMobileProfile = currentPage === "home" && walletConnected && !hideRightRail;
 
   const maskBalance = (value: string) => (balancesHidden ? "••••••" : value);
@@ -709,6 +709,23 @@ export default function MainLayout({
           </span>
         </div>
         <div className="nav-r">
+          <Link
+            href="/webinar"
+            className={`nav-btn nav-live${currentPage === "webinar" ? " active" : ""}`}
+            title="Live Webinar"
+            style={{ cursor: "pointer", position: "relative" }}
+          >
+            <span className="rec-dot" />
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="1.5" y="3" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+              <path
+                d="M11.5 7.2l3-1.8v5.2l-3-1.8V7.2z"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Link>
           <div className="nav-btn" id="navThemeToggle" title="Light / Dark" onClick={toggleTheme} style={{ cursor: "pointer" }}>
             <svg id="themeIcon" width="14" height="14" viewBox="0 0 16 16" fill="none">
               {isDark ? (
@@ -851,7 +868,7 @@ export default function MainLayout({
         {/* Left Sidebar */}
         <div
           ref={bottomNavRef}
-          className="sb mobile-bottom-nav"
+          className={`sb mobile-bottom-nav`}
           role="navigation"
           aria-label="Main navigation"
           onClick={onBottomNavClick}

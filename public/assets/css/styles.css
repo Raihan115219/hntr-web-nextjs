@@ -4739,35 +4739,67 @@ body.wallet-connected .vault-hero .join-btn,
 body.wallet-connected .vault-join .join-btn{display:none!important}
 #feed-home .hero .hero-title { text-shadow: 0 2px 10px rgba(0,0,0,.7); }
 #feed-home .hero .hero-sub { color: #fff !important; text-shadow: 0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.6); }
-/* NFT STRATEGY (pools) banner — gear image + slow rotating gear */
-#feed-pools .pools-hero { background: url("../images/image-15.jpg") center / cover no-repeat !important; height: 198px !important; align-items: flex-start !important; }
-body.dark #feed-pools .pools-hero { background: url("../images/image-15.jpg") center / cover no-repeat !important; }
+/* NFT STRATEGY (pools) banner — engineering blueprint + animated gears */
+#feed-pools .pools-hero{
+  --bn-bg1:#f8f9fb; --bn-bg2:#e9edf1; --bn-grid:#d5dbe2; --bn-ln:#2e343c; --bn-ln2:#8d97a2;
+  --bn-node:#7c8894; --bn-flow:#5b6672; --bn-steel1:#ccd2da; --bn-steel2:#878f9a;
+  --bn-hub:#59616c; --bn-hole:#eef1f4;
+  background:linear-gradient(115deg,var(--bn-bg1),var(--bn-bg2)) !important;
+  height:198px !important; align-items:flex-start !important; overflow:hidden !important;
+}
+#feed-pools .pools-hero.draw{
+  --bn-bg1:#f5f1e8; --bn-bg2:#eae4d6; --bn-grid:#d8d0bf; --bn-ln:#4c463b; --bn-ln2:#948b79;
+  --bn-node:#8c8371; --bn-flow:#6d6453; --bn-hub:#6a6152; --bn-hole:#f0ebe0;
+}
+body.dark #feed-pools .pools-hero{
+  --bn-bg1:#17191d; --bn-bg2:#101215; --bn-grid:#2b2f35; --bn-ln:#cdd3da; --bn-ln2:#6d7681;
+  --bn-node:#8b95a1; --bn-flow:#9aa5b1; --bn-steel1:#5a626d; --bn-steel2:#363c44;
+  --bn-hub:#9aa3ae; --bn-hole:#14161a;
+}
 #feed-pools .pools-hero::after, body.dark #feed-pools .pools-hero::after { display: none !important; background: none !important; }
 #feed-pools #poolsMosaic { display: none !important; }
-.pools-hero-shade { position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(to right, rgba(5,26,40,.86) 0%, rgba(5,26,40,.5) 30%, rgba(5,26,40,0) 60%); }
-.strat-gear { position: absolute; top: 50%; right: 7%; width: 270px; height: 270px; margin-top: -135px;
-  z-index: 1; transform-origin: 50% 50%; animation: stratSpin 26s linear infinite;
-  filter: drop-shadow(0 0 14px rgba(140,215,255,.45)); pointer-events: none; }
-.strat-gear-sm { position: absolute; top: 50%; right: 27%; width: 116px; height: 116px; margin-top: 22px;
-  z-index: 1; transform-origin: 50% 50%; animation: stratSpinRev 18s linear infinite;
-  filter: drop-shadow(0 0 10px rgba(140,215,255,.4)); pointer-events: none; opacity: .9; }
-@keyframes stratSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.pools-hero-shade{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to right,rgba(248,249,251,.92) 0%,rgba(248,249,251,.55) 26%,rgba(248,249,251,0) 52%)}
+#feed-pools .pools-hero.draw .pools-hero-shade{background:linear-gradient(to right,rgba(245,241,232,.92) 0%,rgba(245,241,232,.55) 26%,rgba(245,241,232,0) 52%)}
+body.dark .pools-hero-shade{background:linear-gradient(to right,rgba(16,18,21,.92) 0%,rgba(16,18,21,.55) 26%,rgba(16,18,21,0) 52%)}
+.bn-art{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;pointer-events:none}
+.bn-art .bn-gearzone{pointer-events:all;cursor:pointer}
+#feed-pools .pools-hero.draw .dim{display:none}
+#feed-pools .pools-hero.draw .bn-wobble{filter:url(#bnWobble)}
+.g-teeth{stroke:url(#bnSteel);fill:none}
+.g-spoke{fill:url(#bnSteel)}
+#feed-pools .pools-hero.draw .g-teeth{stroke:url(#bnHatch)}
+#feed-pools .pools-hero.draw .g-spoke{fill:url(#bnHatch)}
+.g-rim{stroke:var(--bn-ln2);fill:none}
+.g-hub{fill:var(--bn-hub)}
+.g-hole{fill:var(--bn-hole)}
+.g-ghost{stroke:var(--bn-ln2);fill:none;opacity:.45}
+.net-line{stroke:var(--bn-ln2);stroke-width:1;opacity:.75}
+.net-node{fill:var(--bn-node);animation:bnPulse 3.2s ease-in-out infinite}
+.net-halo{fill:none;stroke:var(--bn-node);stroke-width:1.5;animation:bnHalo 3.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.bn-flow{stroke:var(--bn-flow);stroke-width:1.8;stroke-dasharray:5 29;fill:none;animation:bnDash 2.6s linear infinite;opacity:.9}
+@keyframes bnPulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes bnHalo{0%,20%{transform:scale(.5);opacity:0}55%{opacity:.45}90%,100%{transform:scale(1.35);opacity:0}}
+@keyframes bnDash{to{stroke-dashoffset:-68}}
 @keyframes liveDotBlink { 0%,100% { opacity:1; } 50% { opacity:.35; } }
 .live-dot { animation: liveDotBlink 1.6s ease-in-out infinite; }
-@keyframes stratSpinRev { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-#feed-pools .pools-hero-title { color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
-#feed-pools .pools-hero-sub { color: rgba(220,240,255,.82); text-shadow: 0 1px 8px rgba(0,0,0,.6); }
-/* MY NFT COLLECTION banner — NFT mosaic background, black text on faded-left */
+#feed-pools .pools-hero-content{position:relative;z-index:3}
+#feed-pools .pools-hero-title { color:#1e242b !important; text-shadow:none; }
+#feed-pools .pools-hero-sub { color:rgba(30,36,43,.72) !important; text-shadow:none; }
+body.dark #feed-pools .pools-hero-title { color:#f2f4f6 !important; }
+body.dark #feed-pools .pools-hero-sub { color:rgba(235,240,245,.72) !important; }
+/* MY NFT COLLECTION banner — scrolling NFT mosaic canvas */
 #feed-collection .hero { height: 198px !important; min-height: 0 !important;
   padding: 0 !important; border: none !important;
-  background: url("../images/image-16.png") left center / cover no-repeat !important;
+  background: #0a0a0c !important;
   align-items: flex-start !important; overflow: hidden !important; box-shadow: var(--sh2); }
 #feed-collection #collMosaic { display: none !important; }
 #feed-collection .hero::after { display: none !important; }
 #feed-collection .hero-content { padding: 30px 34px; position: relative; z-index: 3; }
-#feed-collection .hero-title { color: #0a0a0b !important; text-shadow: none; }
-#feed-collection .hero-sub { color: rgba(10,10,11,.72) !important; text-shadow: none; }
+#feed-collection .hero-title { color: #F2EFEA !important; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+#feed-collection .hero-sub { color: rgba(255,255,255,.85) !important; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
+#collBannerCv{position:absolute;inset:-24px;width:calc(100% + 48px);height:calc(100% + 48px);display:block;z-index:0;transform:rotate(-5deg) scale(1.12);transform-origin:center}
+.coll-banner-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to right,rgba(8,8,11,.82) 0%,rgba(8,8,11,.42) 44%,rgba(8,8,11,.05) 78%)}
 
 /* Per-page feed padding — matches html-ref effective cascade */
 .feed {

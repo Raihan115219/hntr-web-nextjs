@@ -1043,15 +1043,52 @@
     position: relative;
   }
 
+  #feed-collection .hero {
+    height: 198px !important;
+    min-height: 198px !important;
+    position: relative;
+    overflow: hidden !important;
+  }
+
+  #collBannerCv {
+    display: block !important;
+    position: absolute !important;
+    inset: -24px !important;
+    width: calc(100% + 48px) !important;
+    height: calc(100% + 48px) !important;
+    z-index: 0 !important;
+    transform: rotate(-5deg) scale(1.12) !important;
+    transform-origin: center !important;
+  }
+
+  #feed-collection .coll-banner-shade {
+    z-index: 1 !important;
+  }
+
+  #feed-collection .hero-content {
+    position: relative !important;
+    z-index: 3 !important;
+  }
+
   #feed-pools .pools-hero-shade,
   .pools-hero-shade {
     background: linear-gradient(
-      180deg,
-      rgba(5, 18, 28, 0.82) 0%,
-      rgba(5, 18, 28, 0.72) 45%,
-      rgba(5, 18, 28, 0.78) 100%
+      to right,
+      rgba(248, 249, 251, 0.92) 0%,
+      rgba(248, 249, 251, 0.55) 26%,
+      rgba(248, 249, 251, 0) 52%
     ) !important;
     z-index: 2 !important;
+  }
+
+  body.dark #feed-pools .pools-hero-shade,
+  body.dark .pools-hero-shade {
+    background: linear-gradient(
+      to right,
+      rgba(16, 18, 21, 0.92) 0%,
+      rgba(16, 18, 21, 0.55) 26%,
+      rgba(16, 18, 21, 0) 52%
+    ) !important;
   }
 
   .pools-hero-content {
@@ -1063,22 +1100,15 @@
 
   .pools-hero-title {
     font-size: clamp(18px, 5vw, 24px) !important;
-    color: #fff !important;
-    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85) !important;
   }
 
   #feed-pools .pools-hero-sub,
   .pools-hero-sub {
-    color: rgba(255, 255, 255, 0.92) !important;
-    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8) !important;
     line-height: 1.45 !important;
   }
 
-  .strat-gear,
-  .strat-gear-sm {
-    opacity: 0.22 !important;
-    transform: scale(0.65);
-    z-index: 1 !important;
+  .bn-art .dim {
+    display: none;
   }
 
   /* Grids → single / dual columns */

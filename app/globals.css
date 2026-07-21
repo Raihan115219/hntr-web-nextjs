@@ -630,3 +630,43 @@ body {
     opacity: 0;
   }
 }
+
+@keyframes recBlink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes livePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.65);
+  }
+}
+
+.nav-btn.nav-live {
+  position: relative;
+}
+
+.rec-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff2d2d;
+  box-shadow: 0 0 6px #ff2d2d;
+  animation: recBlink 1s steps(1, end) infinite;
+  z-index: 2;
+}

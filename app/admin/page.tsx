@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AdminCard,
   AdminTable,
@@ -31,6 +31,14 @@ import { ConnectKitButton } from "connectkit";
 import { useAccount, useDisconnect } from "wagmi";
 import { writeContract, waitForTransactionReceipt } from "wagmi/actions";
 
+function isWithdrawalTransactionType(type: string): boolean {
+  return type.includes("Withdrawal") || type.includes("WITHDRAW") || type === "COMMISSION_CLAIM" || type === "COMPANY_WALLET_WITHDRAWN";
+}
+
+function transactionAmountColor(type: string): string {
+  return isWithdrawalTransactionType(type) ? "text-white" : "text-green-500";
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const { notifications, notify } = useNotifications();
@@ -50,6 +58,7 @@ export default function AdminDashboard() {
   const [upgradeTier, setUpgradeTier] = useState("");
   const [upgradeRank, setUpgradeRank] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const patchUserRef = useRef<(username: string, tier: string, rank: string) => void>(() => {});
 
   const loadMetrics = useCallback(async () => {
     setMetricsLoading(true);
@@ -174,9 +183,12 @@ export default function AdminDashboard() {
         <UsersTabContent
           onUpgradeClick={(user) => {
             setSelectedUser(user);
-            setUpgradeTier(user.tier);
-            setUpgradeRank(user.rank);
+            setUpgradeTier(user.tier === "None" ? "Bronze" : user.tier);
+            setUpgradeRank(user.rank === "None" ? "Scout" : user.rank);
             setIsUpgradeModalOpen(true);
+          }}
+          onPatchUserReady={(patchUser) => {
+            patchUserRef.current = patchUser;
           }}
           notify={notify}
         />
@@ -321,7 +333,8 @@ export default function AdminDashboard() {
               if (!selectedUser) return;
               setActionLoading(true);
               try {
-                await adminApi.overrideUser(selectedUser.username, upgradeTier, upgradeRank);
+                const result = await adminApi.overrideUser(selectedUser.username, upgradeTier, upgradeRank);
+                patchUserRef.current(result.username, result.tier, result.rank);
                 setIsUpgradeModalOpen(false);
                 notify("success", `User ${selectedUser.username} profile updated.`);
               } catch (err) {
@@ -417,8 +430,8 @@ function OverviewTab({ notify }: { notify: (type: "success" | "error" | "info", 
           <tr key={row.id} className="hover:bg-[#1a1a1a] transition-colors">
             <td className="px-6 py-4 text-sm font-medium">{row.type}</td>
             <td className="px-6 py-4 text-sm text-gray-400">{row.user}</td>
-            <td className={`px-6 py-4 text-sm font-bold ${row.type.includes("Commission") ? "text-green-500" : "text-[#f50]"}`}>
-              {row.type.includes("Withdrawal") || row.type.includes("Admin") ? "-" : "+"}
+            <td className={`px-6 py-4 text-sm font-bold ${transactionAmountColor(row.type)}`}>
+              {isWithdrawalTransactionType(row.type) ? "-" : "+"}
               {formatUsd(row.amount)}
             </td>
             <td className="px-6 py-4 text-sm">
@@ -580,9 +593,11 @@ function WalletsTabContent({ notify }: { notify: (type: "success" | "error" | "i
 
 function UsersTabContent({
   onUpgradeClick,
+  onPatchUserReady,
   notify,
 }: {
   onUpgradeClick: (user: AdminUser) => void;
+  onPatchUserReady: (patchUser: (username: string, tier: string, rank: string) => void) => void;
   notify: (type: "success" | "error" | "info", message: string) => void;
 }) {
   const [search, setSearch] = useState("");
@@ -607,6 +622,16 @@ function UsersTabContent({
     },
     [query, limit, notify],
   );
+
+  const patchUser = useCallback((username: string, tier: string, rank: string) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.username === username ? { ...u, tier, rank } : u)),
+    );
+  }, []);
+
+  useEffect(() => {
+    onPatchUserReady(patchUser);
+  }, [onPatchUserReady, patchUser]);
 
   useEffect(() => {
     load(1, query, limit);
@@ -789,12 +814,8 @@ function TransactionsTabContent({ notify }: { notify: (type: "success" | "error"
               <td className="px-6 py-4 text-xs text-gray-500">{new Date(tx.date).toLocaleString()}</td>
               <td className="px-6 py-4 text-sm font-bold">{tx.user}</td>
               <td className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-gray-500">{typeLabel(tx.type)}</td>
-              <td
-                className={`px-6 py-4 text-sm font-bold ${
-                  typeLabel(tx.type) === "Withdrawal" ? "text-white" : typeLabel(tx.type) === "Purchase" ? "text-[#f50]" : "text-green-500"
-                }`}
-              >
-                {typeLabel(tx.type) === "Withdrawal" ? "-" : "+"}
+              <td className={`px-6 py-4 text-sm font-bold ${transactionAmountColor(typeLabel(tx.type))}`}>
+                {isWithdrawalTransactionType(typeLabel(tx.type)) ? "-" : "+"}
                 {formatUsd(tx.amount)}
               </td>
               <td className="px-6 py-4 text-sm text-white font-mono">

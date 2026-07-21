@@ -1,6 +1,7 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
+import PoolsHeroBanner from "../components/PoolsHeroBanner";
 import { openDepositModal } from "../../lib/deposit-modal";
 import { useEffect, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
@@ -165,57 +166,7 @@ export default function PoolsPage() {
     <MainLayout>
       <div className="feed" id="feed-pools">
         <div className="page-body">
-          <div className="pools-hero">
-            <div className="pools-hero-shade"></div>
-            <svg className="strat-gear-sm" viewBox="0 0 240 240" fill="none" aria-hidden="true">
-              <circle
-                cx="120"
-                cy="120"
-                r="104"
-                stroke="#eaf6ff"
-                strokeWidth="20"
-                strokeDasharray="10 9.8"
-              ></circle>
-              <circle cx="120" cy="120" r="90" stroke="#eaf6ff" strokeWidth="5"></circle>
-              <g fill="#eaf6ff">
-                <rect x="30" y="113" width="180" height="14" rx="7"></rect>
-                <rect x="30" y="113" width="180" height="14" rx="7" transform="rotate(45 120 120)"></rect>
-                <rect x="30" y="113" width="180" height="14" rx="7" transform="rotate(90 120 120)"></rect>
-                <rect x="30" y="113" width="180" height="14" rx="7" transform="rotate(135 120 120)"></rect>
-              </g>
-              <circle cx="120" cy="120" r="42" fill="#0a2a3f"></circle>
-              <circle cx="120" cy="120" r="42" stroke="#eaf6ff" strokeWidth="9"></circle>
-              <circle cx="120" cy="120" r="13" fill="#eaf6ff"></circle>
-            </svg>
-            <svg className="strat-gear" viewBox="0 0 240 240" fill="none" aria-hidden="true">
-              <circle
-                cx="120"
-                cy="120"
-                r="104"
-                stroke="#eaf6ff"
-                strokeWidth="20"
-                strokeDasharray="10 9.8"
-              ></circle>
-              <circle cx="120" cy="120" r="90" stroke="#eaf6ff" strokeWidth="5"></circle>
-              <g fill="#eaf6ff">
-                <rect x="28" y="112" width="184" height="16" rx="8"></rect>
-                <rect x="28" y="112" width="184" height="16" rx="8" transform="rotate(36 120 120)"></rect>
-                <rect x="28" y="112" width="184" height="16" rx="8" transform="rotate(72 120 120)"></rect>
-                <rect x="28" y="112" width="184" height="16" rx="8" transform="rotate(108 120 120)"></rect>
-                <rect x="28" y="112" width="184" height="16" rx="8" transform="rotate(144 120 120)"></rect>
-              </g>
-              <circle cx="120" cy="120" r="46" fill="#0a2a3f"></circle>
-              <circle cx="120" cy="120" r="46" stroke="#eaf6ff" strokeWidth="10"></circle>
-              <circle cx="120" cy="120" r="15" fill="#eaf6ff"></circle>
-            </svg>
-            <div className="pools-hero-content">
-              <div className="pools-hero-title">NFT STRATEGIES</div>
-              <div className="pools-hero-sub">
-                An automatic mechanism designed to accumulate assets, sell them for profits and share with
-                community. Decentralized and Forever.
-              </div>
-            </div>
-          </div>
+          <PoolsHeroBanner />
 
           {/* STAT STRIP */}
           <div className="stat-strip">
