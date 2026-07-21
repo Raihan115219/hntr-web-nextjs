@@ -1,7 +1,8 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { useEffect, useRef, useState } from "react";
+import { BANNER_IMAGES } from "../components/banner-images";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useRouter } from "nextjs-toploader/app";
 import { ensureAuth } from "../../lib/auth";
@@ -12,37 +13,45 @@ import {
   getTierIndex,
   canPurchaseOrUpgradeTier,
 } from "../../lib/membership";
-import { useConnectWallet } from "../../lib/useConnectWallet";
 import { useDashboardData } from "../../lib/rewards";
 import { COMMISSION_LEVELS, TIERS } from "../../lib/contracts";
+import { api, ApiError } from "../../lib/api";
 
 declare global {
   interface Window {
     __resources?: Record<string, string>;
     openSignup?: () => void;
+    suGoto?: (n: number) => void;
     showToast?: (data: { title: string; sub: string; link: string }) => void;
   }
 }
 
-type MosaicCanvas = HTMLCanvasElement & { __mosaic?: boolean };
+function openSignupModal(step = 1) {
+  window.openSignup?.();
+  document.body.classList.add("modal-open");
+  if (step !== 1) window.suGoto?.(step);
+}
 
 type TierPurchasePhase = "wallet" | "loading";
 
 export default function MembershipPage() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { connectWallet } = useConnectWallet();
   const { summary, refetchSummary } = useDashboardData();
+  const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [purchasePhase, setPurchasePhase] = useState<TierPurchasePhase | null>(null);
 
   const currentTier = summary?.tier && summary.tier !== "None" ? summary.tier : null;
   const currentTierIndex = getTierIndex(currentTier);
 
+  useEffect(() => {
+    setSelectedTier(null);
+  }, [currentTier]);
+
   const tierButtonLabel = (
     tierName: string,
-    opts: { isCurrent: boolean; isLower: boolean; isUpgrade: boolean },
+    opts: { isCurrent: boolean; isLower: boolean; isUpgrade: boolean; isSelected: boolean },
   ) => {
     if (opts.isCurrent) return "CURRENT";
     if (opts.isLower) return "LOCKED";
@@ -50,8 +59,8 @@ export default function MembershipPage() {
       if (purchasePhase === "loading") return "LOADING...";
       if (purchasePhase === "wallet") return "CONFIRM IN WALLET";
     }
-    if (opts.isUpgrade) return "UPGRADE";
-    return tierName === "Gold" ? "PURCHASE" : "SELECT";
+    if (opts.isSelected) return opts.isUpgrade ? "UPGRADE" : "PURCHASE";
+    return "SELECT";
   };
 
   useEffect(() => {
@@ -59,28 +68,26 @@ export default function MembershipPage() {
       ...(window.__resources || {}),
       logoMark: "/assets/images/logoMark.png",
     };
-
-    const canvas = canvasRef.current as MosaicCanvas | null;
-    if (canvas) {
-      delete canvas.__mosaic;
-    }
-
-    const scriptId = "mem-banner-script";
-    document.getElementById(scriptId)?.remove();
-
-    const script = document.createElement("script");
-    script.id = scriptId;
-    script.src = `/assets/js/script-4.js?${Date.now()}`;
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      script.remove();
-      if (canvas) delete canvas.__mosaic;
-    };
   }, []);
 
-  const selectTier = async (tierName: string) => {
+  const ensureReadyToPurchase = async (): Promise<boolean> => {
+    try {
+      await ensureAuth();
+      await api.get<{ profile: { username: string; tier: string } }>(
+        `/api/users/wallet/${address!.toLowerCase()}`,
+        { auth: true },
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 404) {
+        openSignupModal(2);
+        return false;
+      }
+      throw error;
+    }
+  };
+
+  const chooseTier = (tierName: string) => {
     if (pendingTier) return;
     if (!canPurchaseOrUpgradeTier(tierName, currentTier)) {
       window.showToast?.({
@@ -93,17 +100,24 @@ export default function MembershipPage() {
       });
       return;
     }
+    setSelectedTier(tierName);
+  };
+
+  const purchaseTier = async (tierName: string) => {
+    if (pendingTier) return;
+    if (selectedTier !== tierName) return;
+    if (!canPurchaseOrUpgradeTier(tierName, currentTier)) return;
+
+    if (!isConnected || !address) {
+      openSignupModal(1);
+      return;
+    }
 
     setPendingTier(tierName);
     setPurchasePhase(null);
     try {
-      let account = address;
-      if (!isConnected || !account) {
-        account = await connectWallet();
-      }
-      if (!account) throw new Error("No wallet account available.");
-
-      await ensureAuth();
+      const ready = await ensureReadyToPurchase();
+      if (!ready) return;
 
       const result = await purchaseOrUpgradeTier(tierName, "USDT", {
         onAwaitingWallet: () => setPurchasePhase("wallet"),
@@ -116,6 +130,7 @@ export default function MembershipPage() {
         link: "",
       });
       await refetchSummary();
+      setSelectedTier(null);
       router.push("/network");
     } catch (error) {
       const resolved = handleAppError(error, "Purchase failed");
@@ -126,13 +141,21 @@ export default function MembershipPage() {
     }
   };
 
+  const handleTierAction = (tierName: string) => {
+    if (selectedTier === tierName) {
+      void purchaseTier(tierName);
+      return;
+    }
+    chooseTier(tierName);
+  };
+
   return (
     <MainLayout>
       <div className="feed" id="feed-membership">
         <div className="page-body">
           {/* HERO */}
           <div className="hero">
-            <canvas ref={canvasRef} id="memBannerCv"></canvas>
+            <img id="memBannerCv" src={BANNER_IMAGES.membership} alt="" draggable={false} />
             <div className="mem-banner-shade"></div>
             <div className="hero-mosaic" id="heroMosaic"></div>
             <div className="hero-content">
@@ -152,19 +175,29 @@ export default function MembershipPage() {
               const isCurrent = currentTierIndex > 0 && tierIndex === currentTierIndex;
               const isLower = currentTierIndex > 0 && tierIndex < currentTierIndex;
               const isUpgrade = currentTierIndex > 0 && tierIndex > currentTierIndex;
-              const isRecommended = !currentTier && tier.name === "Gold";
+              const isSelected = selectedTier === tier.name;
+              const isHighlighted = isSelected;
               const amountDue = getAmountDueUsd(tier.name, currentTier);
               const disabled = !!pendingTier || isCurrent || isLower;
               const hasExtra = tier.name === "Diamond";
-              const buttonLabel = tierButtonLabel(tier.name, { isCurrent, isLower, isUpgrade });
+              const buttonLabel = tierButtonLabel(tier.name, {
+                isCurrent,
+                isLower,
+                isUpgrade,
+                isSelected,
+              });
 
               return (
                 <div
-                  className={`tier-card${isRecommended ? " recommended" : ""}${isCurrent ? " current" : ""}${isLower ? " locked" : ""}`}
+                  className={`tier-card${isHighlighted ? " recommended" : ""}${isCurrent ? " current" : ""}${isLower ? " locked" : ""}`}
                   key={tier.name}
                   style={isLower || isCurrent ? { opacity: isCurrent ? 0.92 : 0.55 } : undefined}
                 >
-                  {isRecommended && <div className="recommended-badge">RECOMMENDED</div>}
+                  {isHighlighted && !isCurrent && (
+                    <div className="recommended-badge">
+                      {isUpgrade ? "UPGRADE" : "SELECTED"}
+                    </div>
+                  )}
                   {isCurrent && (
                     <div className="recommended-badge" style={{ background: "var(--green, #5E6B55)" }}>
                       YOUR PLAN
@@ -192,22 +225,22 @@ export default function MembershipPage() {
                   <div className="tier-features">
                     <div className="tier-feature">
                       <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <circle cx="6" cy="6" r="4.5" stroke={isRecommended ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
-                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isRecommended ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                        <circle cx="6" cy="6" r="4.5" stroke={isHighlighted ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
+                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isHighlighted ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
                       <span className="tier-feature-text">{tier.levels} Unilevel Levels</span>
                     </div>
                     <div className="tier-feature">
                       <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <circle cx="6" cy="6" r="4.5" stroke={isRecommended ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
-                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isRecommended ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                        <circle cx="6" cy="6" r="4.5" stroke={isHighlighted ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
+                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isHighlighted ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
                       <span className="tier-feature-text">All Strategy Pools</span>
                     </div>
                     <div className="tier-feature">
                       <svg className="tier-feature-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <circle cx="6" cy="6" r="4.5" stroke={isRecommended ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
-                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isRecommended ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
+                        <circle cx="6" cy="6" r="4.5" stroke={isHighlighted ? "rgba(242,239,234,.7)" : "currentColor"} strokeWidth="1.2"></circle>
+                        <path d="M3.5 6l1.5 1.5L8.5 4" stroke={isHighlighted ? "rgba(242,239,234,.9)" : "currentColor"} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
                       <span className="tier-feature-text">{tier.maxDeposit} Max Deposit</span>
                     </div>
@@ -222,8 +255,8 @@ export default function MembershipPage() {
                     )}
                   </div>
                   <button
-                    className={`tier-btn${isRecommended || isUpgrade ? " purchase" : ""}`}
-                    onClick={() => selectTier(tier.name)}
+                    className={`tier-btn${isSelected ? " purchase" : ""}`}
+                    onClick={() => handleTierAction(tier.name)}
                     disabled={disabled}
                     title={
                       isLower

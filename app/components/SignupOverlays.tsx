@@ -8,6 +8,14 @@ import { TIERS } from "../../lib/contracts";
 import { handleAppError, resolveAppError } from "../../lib/errors";
 import { purchaseOrUpgradeTier } from "../../lib/membership";
 import { useConnectWallet } from "../../lib/useConnectWallet";
+import {
+  SIGNUP_REGION_OPTIONS,
+  type SignupRegion,
+  type SignupStep2Errors,
+  phonePlaceholderForRegion,
+  sanitizePhoneInput,
+  validateSignupStep2,
+} from "../../lib/signup-validation";
 
 function setModalBodyLock(locked: boolean) {
   document.body.classList.toggle("modal-open", locked);
@@ -27,10 +35,6 @@ function notifyError(title: string, error: unknown) {
   handleAppError(error, title);
 }
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
 type SignupPurchasePhase = "wallet" | "loading";
 
 type SignupPurchaseStatus =
@@ -38,12 +42,6 @@ type SignupPurchaseStatus =
   | { state: "wallet" | "loading"; tier: string }
   | { state: "success"; tier: string; message: string }
   | { state: "error"; message: string };
-
-type Step2FieldErrors = {
-  sponsor?: string;
-  username?: string;
-  email?: string;
-};
 
 declare global {
   interface Window {
@@ -70,10 +68,13 @@ export default function SignupOverlays() {
   const [pendingTier, setPendingTier] = useState<string | null>(null);
   const [purchasePhase, setPurchasePhase] = useState<SignupPurchasePhase | null>(null);
   const [purchaseStatus, setPurchaseStatus] = useState<SignupPurchaseStatus>({ state: "idle" });
-  const [step2Errors, setStep2Errors] = useState<Step2FieldErrors>({});
+  const [step2Errors, setStep2Errors] = useState<SignupStep2Errors>({});
+  const [fullName, setFullName] = useState("");
+  const [region, setRegion] = useState<SignupRegion | "">("");
+  const [phone, setPhone] = useState("");
   const purchaseBusyRef = useRef(false);
 
-  const clearStep2Error = useCallback((field: keyof Step2FieldErrors) => {
+  const clearStep2Error = useCallback((field: keyof SignupStep2Errors) => {
     setStep2Errors((prev) => {
       if (!prev[field]) return prev;
       const next = { ...prev };
@@ -84,7 +85,6 @@ export default function SignupOverlays() {
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
-  const phoneRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
@@ -236,14 +236,15 @@ export default function SignupOverlays() {
     const sponsor = sponsorUsername.trim().replace(/^@/, "");
     const username = usernameRef.current?.value.trim() ?? "";
     const email = emailRef.current?.value.trim() ?? "";
-    const phone = phoneRef.current?.value.trim();
 
-    const errors: Step2FieldErrors = {};
-    if (!sponsor) errors.sponsor = "Sponsor username is required.";
-    if (!username) errors.username = "Username is required.";
-    if (email && !isValidEmail(email)) {
-      errors.email = "Enter a valid email address (e.g. name@company.com).";
-    }
+    const errors = validateSignupStep2({
+      sponsor,
+      username,
+      fullName,
+      region,
+      phone,
+      email,
+    });
     if (Object.keys(errors).length > 0) {
       setStep2Errors(errors);
       return;
@@ -260,7 +261,7 @@ export default function SignupOverlays() {
         username,
         walletAddress: address,
         email,
-        phone,
+        phone: phone.trim(),
         sponsorUsername: sponsor,
       });
       setCurrentUsername(username);
@@ -370,13 +371,13 @@ export default function SignupOverlays() {
                 <label className="su-lbl">Sponsor</label>
                 <input
                   className={`su-input${step2Errors.sponsor ? " is-error" : ""}`}
-                  value={sponsorLocked ? `@${sponsorUsername}` : sponsorUsername}
-                  placeholder="@sponsor_username"
+                  value={sponsorUsername}
+                  placeholder="sponsor_username"
                   disabled={sponsorLocked}
                   required
                   aria-invalid={!!step2Errors.sponsor}
                   onChange={(e) => {
-                    setSponsorUsername(e.target.value.replace(/^@/, ""));
+                    setSponsorUsername(e.target.value.replace(/^@/, "").replace(/\s/g, ""));
                     clearStep2Error("sponsor");
                   }}
                 />
@@ -391,30 +392,68 @@ export default function SignupOverlays() {
                   placeholder="e.g. ALPHA"
                   required
                   aria-invalid={!!step2Errors.username}
-                  onChange={() => clearStep2Error("username")}
+                  onChange={(e) => {
+                    e.target.value = e.target.value.replace(/[^a-zA-Z0-9_]/g, "");
+                    clearStep2Error("username");
+                  }}
                 />
                 {step2Errors.username && <p className="su-field-error">{step2Errors.username}</p>}
               </div>
               <div className="su-field">
                 <label className="su-lbl">Full Name</label>
-                <input className="su-input" placeholder="Enter as shown on identification" />
+                <input
+                  className={`su-input${step2Errors.fullName ? " is-error" : ""}`}
+                  placeholder="Enter as shown on identification"
+                  value={fullName}
+                  required
+                  aria-invalid={!!step2Errors.fullName}
+                  onChange={(e) => {
+                    setFullName(e.target.value.replace(/[^a-zA-Z\s'.-]/g, ""));
+                    clearStep2Error("fullName");
+                  }}
+                />
+                {step2Errors.fullName && <p className="su-field-error">{step2Errors.fullName}</p>}
               </div>
               <div className="su-field su-row">
                 <div>
                   <label className="su-lbl">Nationality</label>
-                  <select className="su-select" defaultValue="">
+                  <select
+                    className={`su-select${step2Errors.region ? " is-error" : ""}`}
+                    value={region}
+                    required
+                    aria-invalid={!!step2Errors.region}
+                    onChange={(e) => {
+                      const nextRegion = e.target.value as SignupRegion | "";
+                      setRegion(nextRegion);
+                      clearStep2Error("region");
+                      if (phone) clearStep2Error("phone");
+                    }}
+                  >
                     <option value="">Select Region</option>
-                    <option>North America</option>
-                    <option>Europe</option>
-                    <option>Asia Pacific</option>
-                    <option>Latin America</option>
-                    <option>Middle East</option>
-                    <option>Africa</option>
+                    {SIGNUP_REGION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  {step2Errors.region && <p className="su-field-error">{step2Errors.region}</p>}
                 </div>
                 <div>
                   <label className="su-lbl">Phone Number</label>
-                  <input className="su-input" ref={phoneRef} placeholder="+00 0000 0000" />
+                  <input
+                    className={`su-input${step2Errors.phone ? " is-error" : ""}`}
+                    value={phone}
+                    placeholder={phonePlaceholderForRegion(region)}
+                    inputMode="tel"
+                    autoComplete="tel"
+                    required
+                    aria-invalid={!!step2Errors.phone}
+                    onChange={(e) => {
+                      setPhone(sanitizePhoneInput(e.target.value));
+                      clearStep2Error("phone");
+                    }}
+                  />
+                  {step2Errors.phone && <p className="su-field-error">{step2Errors.phone}</p>}
                 </div>
               </div>
               <div className="su-field">

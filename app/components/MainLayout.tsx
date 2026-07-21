@@ -14,6 +14,7 @@ import { clearStoredAuth } from "../../lib/api";
 import { handleAppError } from "../../lib/errors";
 import { useDashboardData, useClaimCommissions, usePointsSummary } from "../../lib/rewards";
 import type { StandardToastData } from "../../lib/notification-data";
+import { useBannerHoverEffect } from "../hooks/useBannerHoverEffect";
 
 const MOBILE_MQ = "(max-width: 900px)";
 
@@ -128,6 +129,8 @@ export default function MainLayout({
         : pathname.slice(1);
   const hideRightRail = currentPage === "network" || currentPage === "webinar";
   const showMobileProfile = currentPage === "home" && walletConnected && !hideRightRail;
+
+  useBannerHoverEffect();
 
   const maskBalance = (value: string) => (balancesHidden ? "••••••" : value);
 
@@ -1010,23 +1013,22 @@ export default function MainLayout({
             )}
           </Link>
           
-          <Link href="/learn" className={`si ${currentPage === "learn" ? "active" : ""}`} data-page="learn">
-            <div className="si-icon">
-              <svg viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M8 3.2C6.7 2.3 4.9 2 2.8 2.1c-.4 0-.8.4-.8.8v8.3c0 .5.4.9.9.8 2-.1 3.6.2 4.7 1 .3.2.5.2.8 0 1.1-.8 2.7-1.1 4.7-1 .5.1.9-.3.9-.8V2.9c0-.4-.4-.8-.8-.8-2.1-.1-3.9.2-5.2 1.1z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinejoin="round"
-                />
-                <path d="M8 3.4v9.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            </div>
-            <span className="si-label">Learn</span>
-          </Link>
-          
           <div className="si-bot">
             <div className="si-sep" />
+            <Link href="/learn" className={`si ${currentPage === "learn" ? "active" : ""}`} data-page="learn">
+              <div className="si-icon">
+                <svg viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M8 3.2C6.7 2.3 4.9 2 2.8 2.1c-.4 0-.8.4-.8.8v8.3c0 .5.4.9.9.8 2-.1 3.6.2 4.7 1 .3.2.5.2.8 0 1.1-.8 2.7-1.1 4.7-1 .5.1.9-.3.9-.8V2.9c0-.4-.4-.8-.8-.8-2.1-.1-3.9.2-5.2 1.1z"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinejoin="round"
+                  />
+                  <path d="M8 3.4v9.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              </div>
+              <span className="si-label">Learn</span>
+            </Link>
             <div className="si">
               <div className="si-icon">
                 <svg viewBox="0 0 16 16" fill="none">

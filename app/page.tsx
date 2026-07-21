@@ -8,6 +8,7 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import MainLayout from "./components/MainLayout";
+import { BANNER_IMAGES } from "./components/banner-images";
 import { openDepositModal } from "../lib/deposit-modal";
 import { hasSeenIntro, markIntroSeen } from "../lib/intro-state";
 import { useRouter } from "nextjs-toploader/app";
@@ -818,45 +819,26 @@ export default function HomePage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Always init home banner reveal (desktop + mobile); intro canvas only on desktop
   useEffect(() => {
     window.__resources = {
       ...(window.__resources || {}),
       revealTop: "/assets/images/revealTop.jpg",
-      revealBot: "/assets/images/revealBot.png"
-    };
-
-    const ensureHomeReveal = (attempt = 0) => {
-      const homeCv = document.getElementById("homeRevealCv") as HTMLCanvasElement | null;
-      if (homeCv && window.__initReveal) {
-        window.__initReveal(homeCv);
-        return;
-      }
-      if (attempt < 30) {
-        setTimeout(() => ensureHomeReveal(attempt + 1), 80);
-      }
+      revealBot: "/assets/images/revealBot.png",
     };
 
     const existing = document.querySelector(
-      'script[src="/assets/js/script-1.js"]'
+      'script[src="/assets/js/script-1.js"]',
     ) as HTMLScriptElement | null;
 
-    if (existing) {
-      if (window.__initReveal) {
-        ensureHomeReveal();
-      } else {
-        existing.addEventListener("load", () => ensureHomeReveal(), { once: true });
-      }
-    } else {
+    if (!existing) {
       const script = document.createElement("script");
       script.src = "/assets/js/script-1.js";
       script.async = true;
-      script.onload = () => ensureHomeReveal();
       document.body.appendChild(script);
     }
   }, []);
 
-  // Intro canvas morph setup — desktop only
+  // Intro canvas only on desktop
   useEffect(() => {
     if (!introEnabled) return;
 
@@ -1311,7 +1293,7 @@ export default function HomePage() {
           }}
         >
           <div className="hero">
-                <canvas id="homeRevealCv" />
+                <img id="homeRevealCv" src={BANNER_IMAGES.home} alt="" draggable={false} />
                 <div className="home-reveal-shade" />
                 <div className="hero-left" style={{ zIndex: 2, pointerEvents: "none", padding: "26px 24px 26px 24px" }}>
                   <div className="hero-title" style={{ textShadow: "0 2px 10px rgba(0,0,0,.7)" }}>HNTR</div>

@@ -3065,7 +3065,7 @@ body{color:var(--t3);font-family:var(--fn);font-size:12px;line-height:1.5;displa
 /* HERO BANNER */
 .pools-hero{
   background:var(--olive);
-  height:198px;
+  height:auto;
   position:relative;overflow:hidden;flex-shrink:0;
   display:flex;align-items:flex-end;
   box-shadow:0 2px 12px rgba(60,70,50,.12);
@@ -4372,7 +4372,7 @@ body{color:var(--t3);font-family:var(--fn);font-size:12px;line-height:1.5;displa
 .feed{flex:1;overflow-y:auto;padding:0 0 40px;scrollbar-width:thin}
 
 /* HERO */
-.hero{background:var(--olive);height:198px;position:relative;overflow:hidden;border-radius:var(--r);display:flex;align-items:flex-end;box-shadow:var(--sh2);margin-bottom:18px}
+.hero{background:var(--olive);height:158px;position:relative;overflow:hidden;border-radius:var(--r);display:flex;align-items:flex-end;box-shadow:var(--sh2);margin-bottom:18px}
 .hero-mosaic{position:absolute;right:0;top:0;bottom:0;width:340px;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(5,1fr);gap:1px;opacity:.18}
 .hmc{background:rgba(242,239,234,.4)}
 .hmc:nth-child(3n+1){background:rgba(242,239,234,.2)}
@@ -4725,10 +4725,94 @@ body.dark .hero-right::after,
 body.dark .hero::after,
 body.dark .pools-hero::after { background: linear-gradient(to right, #141416 0%, transparent 45%) !important; }
 body.dark .vault-hero::after { background: linear-gradient(to left, rgba(0,0,0,.45), transparent) !important; }
+/* All page banners — same height as home (1115×158 aspect ratio), full width */
+#feed-home .hero,
+#feed-collection .hero,
+#feed-membership .hero,
+#feed-network .hero,
+#feed-pools .pools-hero {
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 1115 / 158;
+  width: 100%;
+  display: block !important;
+  position: relative !important;
+  overflow: hidden !important;
+  transition: box-shadow 0.35s ease, transform 0.35s ease;
+}
+
+#feed-home .hero:hover,
+#feed-collection .hero:hover,
+#feed-membership .hero:hover,
+#feed-network .hero:hover,
+#feed-pools .pools-hero:hover {
+  box-shadow: var(--sh4);
+}
+
+#homeRevealCv,
+#collBannerCv,
+#memBannerCv,
+#netBannerCv,
+.pools-banner-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  object-fit: cover;
+  object-position: right center;
+  transform-origin: center right;
+  transition: transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+
+#feed-home .hero:hover #homeRevealCv,
+#feed-collection .hero:hover #collBannerCv,
+#feed-membership .hero:hover #memBannerCv,
+#feed-network .hero:hover #netBannerCv,
+#feed-pools .pools-hero:hover .pools-banner-img {
+  transform: scale(1.045);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #feed-home .hero,
+  #feed-collection .hero,
+  #feed-membership .hero,
+  #feed-network .hero,
+  #feed-pools .pools-hero,
+  #homeRevealCv,
+  #collBannerCv,
+  #memBannerCv,
+  #netBannerCv,
+  .pools-banner-img {
+    transition: none !important;
+  }
+}
+
+#feed-home .hero .hero-left,
+#feed-collection .hero-content,
+#feed-membership .hero-content,
+#feed-network .hero-content,
+#feed-pools .pools-hero-content {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+}
+
+#feed-home .hero .hero-right {
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+}
+
 /* HOME hero genesis image — both themes, beats later .hero + dark overrides */
-#feed-home .hero { background:#0a0a0c !important; align-items: stretch !important; box-shadow: none !important; height: 198px !important; }
+#feed-home .hero { background:#0a0a0c !important; box-shadow: none !important; }
 body.dark #feed-home .hero { background:#0a0a0c !important; box-shadow: none !important; }
-#homeRevealCv{position:absolute;right:0;bottom:0;width:100%;height:100%;display:block;z-index:0}
 .home-reveal-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to right,rgba(8,8,11,.82) 0%,rgba(8,8,11,.42) 24%,rgba(8,8,11,0) 52%)}
 #feed-home .hero .hero-left{z-index:2;pointer-events:none}
 #feed-home .hero .hero-right, #feed-home .hero .hero-right *{pointer-events:none}
@@ -4745,7 +4829,7 @@ body.wallet-connected .vault-join .join-btn{display:none!important}
   --bn-node:#7c8894; --bn-flow:#5b6672; --bn-steel1:#ccd2da; --bn-steel2:#878f9a;
   --bn-hub:#59616c; --bn-hole:#eef1f4;
   background:linear-gradient(115deg,var(--bn-bg1),var(--bn-bg2)) !important;
-  height:198px !important; align-items:flex-start !important; overflow:hidden !important;
+  height:auto !important; align-items:flex-start !important; overflow:hidden !important;
 }
 #feed-pools .pools-hero.draw{
   --bn-bg1:#f5f1e8; --bn-bg2:#eae4d6; --bn-grid:#d8d0bf; --bn-ln:#4c463b; --bn-ln2:#948b79;
@@ -4783,22 +4867,21 @@ body.dark .pools-hero-shade{background:linear-gradient(to right,rgba(16,18,21,.9
 @keyframes bnDash{to{stroke-dashoffset:-68}}
 @keyframes liveDotBlink { 0%,100% { opacity:1; } 50% { opacity:.35; } }
 .live-dot { animation: liveDotBlink 1.6s ease-in-out infinite; }
-#feed-pools .pools-hero-content{position:relative;z-index:3}
 #feed-pools .pools-hero-title { color:#1e242b !important; text-shadow:none; }
 #feed-pools .pools-hero-sub { color:rgba(30,36,43,.72) !important; text-shadow:none; }
 body.dark #feed-pools .pools-hero-title { color:#f2f4f6 !important; }
 body.dark #feed-pools .pools-hero-sub { color:rgba(235,240,245,.72) !important; }
 /* MY NFT COLLECTION banner — scrolling NFT mosaic canvas */
-#feed-collection .hero { height: 198px !important; min-height: 0 !important;
+#feed-collection .hero {
   padding: 0 !important; border: none !important;
   background: #0a0a0c !important;
-  align-items: flex-start !important; overflow: hidden !important; box-shadow: var(--sh2); }
+  box-shadow: var(--sh2);
+}
 #feed-collection #collMosaic { display: none !important; }
 #feed-collection .hero::after { display: none !important; }
-#feed-collection .hero-content { padding: 30px 34px; position: relative; z-index: 3; }
+#feed-collection .hero-content { padding: 30px 34px; }
 #feed-collection .hero-title { color: #F2EFEA !important; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
 #feed-collection .hero-sub { color: rgba(255,255,255,.85) !important; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
-#collBannerCv{position:absolute;inset:-24px;width:calc(100% + 48px);height:calc(100% + 48px);display:block;z-index:0;transform:rotate(-5deg) scale(1.12);transform-origin:center}
 .coll-banner-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to right,rgba(8,8,11,.82) 0%,rgba(8,8,11,.42) 44%,rgba(8,8,11,.05) 78%)}
 
 /* Per-page feed padding — matches html-ref effective cascade */
@@ -4829,13 +4912,10 @@ body.dark #feed-pools .pools-hero-sub { color:rgba(235,240,245,.72) !important; 
 /* MEMBERSHIP banner — membership-card image */
 #feed-membership .hero {
   background:#0d0b07 !important;
-  height: 198px !important;
-  min-height: 0 !important;
   width: 100% !important;
   padding: 0 !important;
   border: none !important;
   margin-bottom: 18px !important;
-  overflow: hidden !important;
   box-shadow: var(--sh2) !important;
   border-radius: var(--r) !important;
   box-sizing: border-box !important;
@@ -4845,41 +4925,33 @@ body.dark #feed-membership .hero {
 }
 #feed-membership #heroMosaic { display: none !important; }
 #feed-membership .hero::after { display: none !important; background: none !important; }
-#feed-membership .hero-content { position: relative; z-index: 3; }
-#feed-membership .hero { align-items: flex-start !important; }
-#memBannerCv{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
 .mem-banner-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to right,rgba(13,11,7,.93) 0%,rgba(13,11,7,.55) 30%,rgba(13,11,7,.05) 60%,rgba(13,11,7,0) 100%)}
 #feed-membership .hero-title { color: #fff !important; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
 #feed-membership .hero-sub { color: rgba(255,255,255,.82) !important; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
 
 /* NETWORK banner — plexus particle canvas */
 #feed-network .hero {
-  background:#0a0705 !important;
-  height: 198px !important;
-  min-height: 0 !important;
+  background:#0a1024 !important;
   width: 100% !important;
   padding: 0 !important;
   border: none !important;
   margin-bottom: 18px !important;
-  overflow: hidden !important;
   box-shadow: var(--sh2) !important;
   border-radius: var(--r) !important;
   box-sizing: border-box !important;
 }
 body.dark #feed-network .hero {
-  background: #0a0705 !important;
+  background: #0a1024 !important;
 }
 #feed-network #networkMosaic { display: none !important; }
 #feed-network .hero::after { display: none !important; background: none !important; }
-#feed-network .hero-content { position: relative; z-index: 3; }
-#feed-network .hero { align-items: flex-start !important; }
-#netBannerCv{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
-.net-banner-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to right,rgba(10,7,5,.94) 0%,rgba(10,7,5,.6) 30%,rgba(10,7,5,.05) 60%,rgba(10,7,5,0) 100%)}
+.net-banner-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to right,rgba(10,16,36,.94) 0%,rgba(10,16,36,.55) 34%,rgba(10,16,36,.08) 58%,rgba(10,16,36,0) 78%)}
 #feed-network .hero-title { color: #fff !important; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
 #feed-network .hero-sub { color: rgba(255,255,255,.82) !important; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
 #feed-network .net-refresh-btn {
   margin-top: 12px;
   padding: 6px 14px;
+  width: fit-content;
   font-size: 12px;
   font-family: var(--fd);
   font-weight: 700;
@@ -6451,26 +6523,17 @@ body.dark .intro-scrollhint{color:var(--t4);text-shadow:0 2px 14px rgba(0,0,0,.8
   #introRevealCv{object-fit:cover}
   /* Ensure intro-imgwrap maintains a better aspect ratio */
   .intro-imgwrap{margin:20px 0 48px}
-  #feed-home .hero{height:210px !important}
-}
-
-@media (min-width: 1600px) {
-  .intro-left{width:30%;min-width:480px}
-  /* Adjust hero height to better match intro canvas aspect ratio */
-  #feed-home .hero{height:220px !important}
 }
 
 @media (min-width: 1920px) {
   .intro-left{width:30%;min-width:520px;padding:0 clamp(40px,5vw,72px)}
   .intro-title{font-size:clamp(36px,3.5vw,48px)}
   .intro-sub{font-size:15px;max-width:520px}
-  #feed-home .hero{height:240px !important}
   .intro-imgwrap{margin:24px 0 52px}
 }
 
 @media (min-width: 2560px) {
   .intro-left{width:28%;min-width:580px}
-  #feed-home .hero{height:260px !important}
   .intro-imgwrap{margin:28px 0 56px}
 }
 
