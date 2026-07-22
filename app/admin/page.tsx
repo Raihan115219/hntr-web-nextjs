@@ -686,7 +686,9 @@ function UsersTabContent({
             <tr key={u.id} className="hover:bg-[#1a1a1a] transition-colors">
               <td className="px-6 py-4">
                 <div className="text-sm font-bold">{u.username}</div>
-                <div className="text-[10px] text-gray-500 font-mono">{u.walletAddress.slice(0, 6)}...{u.walletAddress.slice(-3)}</div>
+                <div className="text-[10px] text-gray-500 font-mono">
+                  {u.walletAddress ? `${u.walletAddress.slice(0, 6)}...${u.walletAddress.slice(-3)}` : "—"}
+                </div>
               </td>
               <td className="px-6 py-4 text-sm font-medium">{u.tier}</td>
               <td className="px-6 py-4 text-sm text-gray-400">{u.rank}</td>

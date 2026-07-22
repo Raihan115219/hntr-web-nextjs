@@ -47,7 +47,7 @@ export interface AdminMetrics {
 export interface AdminUser {
   id: string;
   username: string;
-  walletAddress: string;
+  walletAddress?: string;
   tier: string;
   rank: string;
   teamVolume: number;
