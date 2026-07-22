@@ -411,6 +411,60 @@ function PosVal({ eth, usd }: { eth: string; usd: string }) {
   );
 }
 
+type PosMobileCell = { k: string; v: string; color: string };
+
+function getPosMobileMeta(row: ListedRow | SoldRow | ProgressRow, view: PosView) {
+  if (view === "listed") {
+    const r = row as ListedRow;
+    return {
+      src: r.src,
+      coll: r.coll,
+      token: r.token,
+      statusDot: "#ec7a2c",
+      cells: [
+        { k: "Price Listed", v: r.price, color: "var(--t4)" },
+        { k: "APR", v: r.apr, color: "var(--green)" },
+        { k: "My Profit", v: r.profit, color: "var(--green)" },
+      ] as PosMobileCell[],
+      hasBar: false,
+      pct: "",
+    };
+  }
+
+  if (view === "sold") {
+    const r = row as SoldRow;
+    return {
+      src: r.src,
+      coll: r.coll,
+      token: r.token,
+      statusDot: "var(--red)",
+      cells: [
+        { k: "Bought", v: r.bought, color: "var(--t4)" },
+        { k: "Sold", v: r.sold, color: "var(--t4)" },
+        { k: "My Profit", v: r.profit, color: r.neg ? "var(--red)" : "var(--green)" },
+      ] as PosMobileCell[],
+      hasBar: false,
+      pct: "",
+    };
+  }
+
+  const r = row as ProgressRow;
+  return {
+    src: r.src,
+    coll: r.coll,
+    token: r.token,
+    statusDot: "#ec7a2c",
+    cells: [
+      { k: "ETH Target", v: r.target, color: "var(--t4)" },
+      { k: "Raised", v: r.raised, color: "var(--t4)" },
+      { k: "APR", v: r.apr, color: "var(--green)" },
+      { k: "My Deposit", v: r.dep, color: "var(--t4)" },
+    ] as PosMobileCell[],
+    hasBar: true,
+    pct: `${r.pct}%`,
+  };
+}
+
 export default function CollectionPage() {
   const router = useRouter();
   const [collections, setCollections] = useState(COLLECTIONS);
@@ -507,12 +561,11 @@ export default function CollectionPage() {
             <div className="coll-stats">
               <div className="coll-stat">
                 <div className="cs-lbl">NFT Owned</div>
-                <div className="cs-val">
-                  {totalNftCount} <span className="cs-unit">NFTs</span>
-                </div>
+                <div className="cs-val">{totalNftCount}</div>
+                <div className="cs-sub">NFTs</div>
               </div>
               <div className="coll-stat">
-                <div className="cs-lbl">Total NFTs Value</div>
+                <div className="cs-lbl">Total Value</div>
                 <div className="cs-val">
                   {totalFloorValue.eth} <span className="eth-ic"></span>
                 </div>
@@ -523,20 +576,19 @@ export default function CollectionPage() {
                 <div className="cs-val">
                   42.8<span className="cs-unit">%</span>
                 </div>
+                <div className="cs-sub">—</div>
               </div>
               <div className="coll-stat">
-                <div className="cs-lbl">Unrealized Profit</div>
-                <div className="cs-val">
-                  15 <span className="eth-ic"></span>
-                </div>
-                <div className="cs-sub">$35,000.32</div>
+                <div className="cs-lbl">Avg. Hold</div>
+                <div className="cs-val">47d</div>
+                <div className="cs-sub">days</div>
               </div>
             </div>
 
             {/* MAIN CONTENT */}
             <div className="coll-main">
-              <div className="vault-left">
-                <div className={`panel panel-collections${collectionsOpen ? "" : " collapsed"}`}>
+              <div className="vault-left coll-sidebar-panels">
+                <div className={`panel panel-collections coll-collections-panel${collectionsOpen ? "" : " collapsed"}`}>
                   <button
                     type="button"
                     className="panel-title panel-title-toggle"
@@ -586,7 +638,7 @@ export default function CollectionPage() {
                   </div>
                 </div>
 
-                <div className="panel">
+                <div className="panel coll-distribution-panel">
                   <div className="panel-title">My NFT Distribution</div>
                   <div className="dist-bar">
                     <div className="dist-seg" style={{ width: "35%", background: "var(--olive)" }}></div>
@@ -734,6 +786,7 @@ export default function CollectionPage() {
             </div>
 
             {/* POSITIONS BREAKDOWN */}
+            <div className="coll-pos-section">
             <div className="coll-sh coll-sh-positions" style={{ marginTop: "8px" }}>
               <div className="coll-sh-title">All Positions Breakdown</div>
               <div className="pos-toggle">
@@ -761,7 +814,51 @@ export default function CollectionPage() {
               </div>
             </div>
 
-            <div className="pos-table-wrap">
+            <div className="coll-pos-mobile">
+              {rows.map((row) => {
+                const meta = getPosMobileMeta(row, posView);
+                return (
+                  <div key={`${meta.src}-${meta.token}`} className="coll-pos-card">
+                    <div className="coll-pos-card-top">
+                      <span className="coll-pos-dot" style={{ background: meta.statusDot }} aria-hidden="true" />
+                      <div className="coll-pos-main">
+                        <div className="coll-pos-name">
+                          {meta.coll}{" "}
+                          <span className="coll-pos-token">{meta.token}</span>
+                        </div>
+                      </div>
+                      <span className="coll-pos-src">{meta.src}</span>
+                      <button type="button" className="coll-pos-view-btn">
+                        VIEW
+                      </button>
+                    </div>
+                    <div className="coll-pos-cells">
+                      {meta.cells.map((cell) => (
+                        <div key={cell.k} className="coll-pos-cell">
+                          <span className="coll-pos-cell-k">{cell.k}</span>
+                          <span className="coll-pos-cell-v" style={{ color: cell.color }}>
+                            {cell.v}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {meta.hasBar ? (
+                      <div className="coll-pos-bar-row">
+                        <div className="coll-pos-bar">
+                          <div className="coll-pos-bar-fill" style={{ width: meta.pct }} />
+                        </div>
+                        <span className="coll-pos-bar-pct">{meta.pct}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <div className="coll-pos-count">
+                Showing 1–{rows.length} of {POS_TOTALS[posView]} entries
+              </div>
+            </div>
+
+            <div className="pos-table-wrap coll-pos-desktop">
               <div className="table-scroll pos-table-scroll">
               <table className="pos-table">
                 <thead>
@@ -878,6 +975,7 @@ export default function CollectionPage() {
                   <button className="pos-pg">›</button>
                 </div>
               </div>
+            </div>
             </div>
           </div>
       </div>

@@ -9,7 +9,7 @@ import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import MainLayout from "./components/MainLayout";
 import { BANNER_IMAGES } from "./components/banner-images";
-import { openDepositModal } from "../lib/deposit-modal";
+import { DEPOSIT_CTA_LABEL } from "../lib/deposit-modal";
 import { hasSeenIntro, markIntroSeen } from "../lib/intro-state";
 import { useRouter } from "nextjs-toploader/app";
 import {
@@ -475,18 +475,12 @@ export default function HomePage() {
   const introEnabledRef = useRef(false);
 
   const skipIntroForMobile = () => {
-    markIntroSeen();
     setIntroEnabled(false);
     introEnabledRef.current = false;
     setIntro(false);
     setProgress(1);
     targetRef.current = 1;
     autoPlayRef.current = false;
-    setLoaderOut(true);
-    setTypedTitleCount(titleCharsRef.current.length);
-    setTypedSubCount(subCharsRef.current.length);
-    setBtnIn(true);
-    setHideCaret(true);
     document.body.classList.remove("intro-active");
 
     const cv = document.getElementById("introRevealCv") as HTMLCanvasElement | null;
@@ -815,7 +809,12 @@ export default function HomePage() {
       setLoaderOut(true);
       return;
     }
-    const t = setTimeout(() => setLoaderOut(true), 1150);
+    const t = setTimeout(() => {
+      setLoaderOut(true);
+      if (!introEnabledRef.current) {
+        markIntroSeen();
+      }
+    }, 1150);
     return () => clearTimeout(t);
   }, []);
 
@@ -1552,14 +1551,8 @@ export default function HomePage() {
                           >
                             <span className="car">▾</span>Pool Details
                           </button>
-                          <button
-                            className="npc-btn-p"
-                            type="button"
-                            onClick={() =>
-                              openDepositModal(`${pool.name} #${pool.tokenId}`, pool.targetLabel)
-                            }
-                          >
-                            Make a Deposit Now
+                          <button className="npc-btn-p" type="button" disabled>
+                            {DEPOSIT_CTA_LABEL}
                           </button>
                         </div>
                       </div>
@@ -1591,13 +1584,13 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="sh">
+              <div className="sh sh-listings">
                 <div>
                   <div className="st">HNTR'S LISTINGS</div>
-                  <div className="sub">All NFTs currently for sell</div>
+                  <div className="sub">All NFTs currently for sale</div>
                 </div>
-                <a className="va" style={{ cursor: 'pointer' }} onClick={() => router.push("/marketplace")}>
-                  View All Listings
+                <a className="va va-listings-inline" style={{ cursor: 'pointer' }} onClick={() => router.push("/marketplace")}>
+                  View All
                 </a>
               </div>
 
@@ -1633,6 +1626,24 @@ export default function HomePage() {
                       </SwiperSlide>
                     ))}
                   </Swiper>
+                )}
+                {isMobile && (
+                  <button
+                    type="button"
+                    className="listings-view-all-mobile"
+                    onClick={() => router.push("/marketplace")}
+                  >
+                    VIEW ALL LISTINGS
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path
+                        d="M3 8h9M8.5 4.5L12 8l-3.5 3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
                 )}
               </div>
 
@@ -1773,7 +1784,7 @@ export default function HomePage() {
               <div className="sh">
                 <div>
                   <div className="st">HNTR'S SALES</div>
-                  <div className="sub">All NFTs sold by HNTR</div>
+                  <div className="sub">Realised profit from closed positions</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <a

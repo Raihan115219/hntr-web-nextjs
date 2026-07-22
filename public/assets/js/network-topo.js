@@ -326,14 +326,14 @@ function drawNetworkTree() {
 }
 function drawQR(){
   const canvas=document.getElementById('qrCanvas');if(!canvas)return;
-  const ctx=canvas.getContext('2d'),size=160,cells=20,cell=size/cells;
+  const ctx=canvas.getContext('2d'),size=canvas.width||128,cells=20,cell=size/cells;
   const cs=getComputedStyle(document.body);
-  const olive=cs.getPropertyValue('--olive').trim()||'#5E6B55';
-  const bg=cs.getPropertyValue('--e3').trim()||'#f4f2ee';
+  const fg=cs.getPropertyValue('--accent').trim()||'#ec7a2c';
+  const bg=cs.getPropertyValue('--inner').trim()||cs.getPropertyValue('--e3').trim()||'#f7f5f1';
   ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
-  [[0,0],[13,0],[0,13]].forEach(([cx,cy])=>{ctx.fillStyle=olive;ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);ctx.fillStyle=bg;ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);ctx.fillStyle=olive;ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);});
+  [[0,0],[13,0],[0,13]].forEach(([cx,cy])=>{ctx.fillStyle=fg;ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);ctx.fillStyle=bg;ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);ctx.fillStyle=fg;ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);});
   const seed=[1,0,1,1,0,1,0,1,0,0,1,1,0,1,0,1,1,0,1,0];
-  for(let r=0;r<cells;r++)for(let c=0;c<cells;c++){if((r<8&&c<8)||(r<8&&c>11)||(r>11&&c<8))continue;if((seed[(r+c)%20]+seed[(r*c)%20])%2===0){ctx.fillStyle=olive;ctx.fillRect(c*cell,r*cell,cell*.9,cell*.9);}}
+  for(let r=0;r<cells;r++)for(let c=0;c<cells;c++){if((r<8&&c<8)||(r<8&&c>11)||(r>11&&c<8))continue;if((seed[(r+c)%20]+seed[(r*c)%20])%2===0){ctx.fillStyle=fg;ctx.fillRect(c*cell,r*cell,cell*.9,cell*.9);}}
 }
 
 window.drawNetworkTree = drawNetworkTree;
@@ -346,6 +346,7 @@ if (!window._topoThemeObs) {
     if (isDark === lastDark) return;
     lastDark = isDark;
     if (document.getElementById('topoSvg')) drawNetworkTree();
+    if (document.getElementById('qrCanvas')) drawQR();
   });
   window._topoThemeObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }

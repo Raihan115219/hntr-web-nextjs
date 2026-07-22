@@ -296,6 +296,17 @@ export default function NetworkPage() {
       ? `${window.location.origin}/?ref=${summary.username}`
       : "Connect your wallet to get your link";
 
+  const referralLinkDisplay = useMemo(() => {
+    if (!summary?.username) return "Connect your wallet to get your link";
+    const host =
+      typeof window !== "undefined"
+        ? window.location.host.replace(/^www\./, "")
+        : "hntr.art";
+    const full = `${host}/?ref=${summary.username}`;
+    if (full.length <= 42) return full;
+    return `${full.slice(0, 22)}…${full.slice(-4)}`;
+  }, [summary?.username]);
+
   const copyRef = () => {
     if (!summary?.username) {
       window.showToast?.({ title: "No referral link yet", sub: "Finish signing up to get your link.", link: "" });
@@ -492,15 +503,17 @@ export default function NetworkPage() {
                   20% of referral commissions
                 </div>
               </div>
-              <div className="net-stat" style={{ position: "relative" }}>
+              <div className="net-stat net-stat-membership" style={{ position: "relative" }}>
                 <div className="net-stat-lbl">Membership</div>
-                <div className="net-stat-val" style={{ fontSize: "22px", fontFamily: "var(--fd)" }}>
-                  {(summary?.tier || "NONE").toUpperCase()}
-                </div>
+                <div className="net-stat-val net-stat-tier-val">{(summary?.tier || "NONE").toUpperCase()}</div>
+                {summary?.rank ? <div className="net-stat-chg">{summary.rank}</div> : null}
                 <button
-                  className="upgrade-btn"
+                  className="upgrade-btn net-stat-upgrade-btn"
                   style={{ position: "absolute", top: "12px", right: "12px", margin: 0 }}
-                  onClick={() => router.push("/membership")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push("/membership");
+                  }}
                 >
                   UPGRADE
                 </button>
@@ -659,16 +672,18 @@ export default function NetworkPage() {
                 note: "SOON",
               },
             ].map((reward, i) => (
-              <div className="net-reward-card" style={{ "--delay": reward.delay } as React.CSSProperties} key={i}>
-                <div className="net-rc-top">
-                  <div className="net-rc-icon">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      {reward.icon}
-                    </svg>
+              <div
+                className={`net-reward-card${reward.tag === "COMING SOON" ? " net-reward-soon" : ""}`}
+                style={{ "--delay": reward.delay } as React.CSSProperties}
+                key={i}
+              >
+                <div className="net-rc-header">
+                  <div className="net-rc-header-main">
+                    <span className="net-rc-live-dot" aria-hidden="true"></span>
+                    <div className="net-rc-name">{reward.name}</div>
                   </div>
                   <div className="net-rc-tag">{reward.tag}</div>
                 </div>
-                <div className="net-rc-name">{reward.name}</div>
                 {"poolBalance" in reward && reward.poolBalance ? (
                   <div
                     className="net-rc-pool-bal"
@@ -701,6 +716,16 @@ export default function NetworkPage() {
             ))}
           </div>
 
+          <div className="net-membership-banner">
+            <div className="net-membership-banner-copy">
+              <div className="net-membership-banner-lbl">Membership</div>
+              <div className="net-membership-banner-tier">{(summary?.tier || "NONE").toUpperCase()}</div>
+            </div>
+            <button type="button" className="net-membership-banner-btn" onClick={() => router.push("/membership")}>
+              UPGRADE
+            </button>
+          </div>
+
           <div className="topo-outer">
             <div className="topo-card">
               <div className="topo-hdr">
@@ -727,22 +752,28 @@ export default function NetworkPage() {
               <div className="ref-title">Referral Link</div>
               <div className="ref-link-row">
                 <div className="ref-link-box" title={referralLink}>
-                  {referralLink}
+                  {referralLinkDisplay}
                 </div>
-                <button className="ref-copy-btn" onClick={copyRef}>
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                    <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"></rect>
+                <button type="button" className="ref-copy-btn" onClick={copyRef} aria-label="Copy referral link">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"></rect>
                     <path
                       d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
                       stroke="currentColor"
-                      strokeWidth="1.4"
+                      strokeWidth="1.5"
                       strokeLinecap="round"
                     ></path>
                   </svg>
                 </button>
               </div>
-              <div className="ref-qr-wrap">
-                <canvas id="qrCanvas" width="160" height="160"></canvas>
+              <div className="ref-qr-row">
+                <canvas id="qrCanvas" className="ref-qr-canvas" width="128" height="128"></canvas>
+                <div className="ref-qr-copy">
+                  <div className="ref-qr-title">Scan to invite</div>
+                  <div className="ref-qr-desc">
+                    Share your link and earn instant commission on every hunter&apos;s pool volume.
+                  </div>
+                </div>
               </div>
             </div>
           </div>

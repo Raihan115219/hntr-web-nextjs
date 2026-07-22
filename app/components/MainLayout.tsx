@@ -117,6 +117,8 @@ export default function MainLayout({
   const [portalMounted, setPortalMounted] = useState(false);
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const profileSlotRef = useRef<HTMLDivElement | null>(null);
+  const activitySlotRef = useRef<HTMLDivElement | null>(null);
+  const [activityAnchor, setActivityAnchor] = useState<HTMLElement | null>(null);
   const bottomNavRef = useRef<HTMLDivElement | null>(null);
   const navBarPathRef = useRef<SVGPathElement | null>(null);
   
@@ -128,7 +130,9 @@ export default function MainLayout({
         ? "pooldetail"
         : pathname.slice(1);
   const hideRightRail = currentPage === "network" || currentPage === "webinar";
-  const showMobileProfile = currentPage === "home" && walletConnected && !hideRightRail;
+  const showMobileHomeRail = currentPage === "home" && walletConnected && !hideRightRail && isMobileView;
+  const showMobileHomeActivity = currentPage === "home" && !hideRightRail && isMobileView;
+  const hideMobileRailToggle = currentPage === "home" && isMobileView;
 
   useBannerHoverEffect();
 
@@ -225,9 +229,9 @@ export default function MainLayout({
     };
   }, [pathname, currentPage]);
 
-  // Mount mobile profile card after home banner only
+  // Mount mobile profile + stats inline after home banner
   useEffect(() => {
-    if (!showMobileProfile) {
+    if (!showMobileHomeRail) {
       setProfileAnchor(null);
       profileSlotRef.current?.remove();
       profileSlotRef.current = null;
@@ -244,8 +248,8 @@ export default function MainLayout({
     const place = () => {
       if (cancelled) return;
       const panel = document.getElementById("panel-home");
-      const hero = panel?.querySelector(".hero") as HTMLElement | null;
-      if (!hero) {
+      const anchor = panel?.querySelector(".pbar") as HTMLElement | null;
+      if (!anchor) {
         if (attempts++ < 20) {
           timer = setTimeout(place, 50);
         } else {
@@ -261,8 +265,8 @@ export default function MainLayout({
         profileSlotRef.current = slot;
       }
 
-      if (slot.previousElementSibling !== hero) {
-        hero.insertAdjacentElement("afterend", slot);
+      if (slot.previousElementSibling !== anchor) {
+        anchor.insertAdjacentElement("afterend", slot);
       }
       setProfileAnchor(slot);
     };
@@ -272,12 +276,63 @@ export default function MainLayout({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [showMobileProfile]);
+  }, [showMobileHomeRail]);
+
+  // Mount platform activity at end of home feed (before footer)
+  useEffect(() => {
+    if (!showMobileHomeActivity) {
+      setActivityAnchor(null);
+      activitySlotRef.current?.remove();
+      activitySlotRef.current = null;
+      document.querySelectorAll(".mobile-activity-slot").forEach((el) => {
+        if (!el.closest("#panel-home")) el.remove();
+      });
+      return;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const place = () => {
+      if (cancelled) return;
+      const feed = document.getElementById("feed-home");
+      const footer = feed?.querySelector(".home-footer") as HTMLElement | null;
+      if (!feed || !footer) {
+        if (attempts++ < 20) {
+          timer = setTimeout(place, 50);
+        } else {
+          setActivityAnchor(null);
+        }
+        return;
+      }
+
+      let slot = activitySlotRef.current;
+      if (!slot) {
+        slot = document.createElement("div");
+        slot.className = "mobile-activity-slot";
+        activitySlotRef.current = slot;
+      }
+
+      if (slot.nextElementSibling !== footer) {
+        footer.insertAdjacentElement("beforebegin", slot);
+      }
+      setActivityAnchor(slot);
+    };
+
+    place();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [showMobileHomeActivity]);
 
   useEffect(() => {
     return () => {
       profileSlotRef.current?.remove();
       profileSlotRef.current = null;
+      activitySlotRef.current?.remove();
+      activitySlotRef.current = null;
     };
   }, []);
 
@@ -486,120 +541,206 @@ export default function MainLayout({
     );
   };
 
-  const renderRightRail = () => (
-    <div
-      id="app-right-rail"
-      className={`rail${railOpen ? " rail-open" : ""}${isMobileView ? " mobile-rail-drawer" : ""}`}
-      style={
-        isMobileView
-          ? undefined
-          : {
-              transform: railOpen ? undefined : `translateX(${railTransX}%)`,
-              opacity: railOpacity,
-            }
-      }
-      onClick={(e) => e.stopPropagation()}
-    >
-      {!walletConnected ? (
-        <SignupCard />
-      ) : (
-        <>
-          {renderProfileCard()}
+  const renderMobileProfileBlock = () => {
+    const progress = summary?.progress;
+    const progressPct = progress?.percent ?? 0;
+    const rankLabel = summary?.rank || "None";
+    const rankBadge =
+      rankLabel.toLowerCase().includes("elite")
+        ? "ELITE"
+        : rankLabel !== "None"
+          ? rankLabel.split(" ").pop()?.toUpperCase()
+          : null;
 
-          <div className="r-div">
-            <div className="rs2">
-              <div className="rsb">
-                <div className="rsbl">Total Rewarded</div>
-                <div className="rsbv">
-                  {maskBalance(`$${(summary?.totalRewarded ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
-                </div>
-                <div className="rsbc">{summary?.networkSize ?? 0} network members</div>
-              </div>
-              <div className="rsb">
-                <div className="rsbl" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  HNTR Points
-                  <span className="info-i" data-tip="250 points per $1 spent on membership, 10 points per $1 commission earned.">
-                    i
-                  </span>
-                </div>
-                <div className="rsbv">
-                  {maskBalance((pointsSummary?.hntrPoints ?? 0).toLocaleString())}
-                </div>
-                <div className="rsbg">Lifetime</div>
-              </div>
+    return (
+      <div className="r-div rail-profile-block mobile-rail-profile">
+        <div className="rp mobile-rp">
+          <div className="rav mobile-rav">👤</div>
+          <div className="mobile-rp-meta">
+            <div className="mobile-rp-name-row">
+              <div className="rn mobile-rn">{summary?.username || "Unregistered"}</div>
+              {rankBadge ? <span className="mobile-rank-badge">{rankBadge}</span> : null}
             </div>
+            <div className="rt mobile-rt">{rankLabel}</div>
           </div>
-
-          <div className="rrtl">Active Rewards Tiers</div>
-          <div className="rrc" style={{ marginBottom: "8px" }}>
-            <div className="rrct">
-              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="4.5" stroke="#8a9e82" strokeWidth="1.2" />
-                  <path
-                    d="M4 6l1.5 1.5L8 4"
-                    stroke="#8a9e82"
-                    strokeWidth="1.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <div className="rrctype">Referral Commission</div>
-              </div>
-            </div>
-            <div className="rrcd">Claimable now from your direct referral network</div>
-            <div className="rrcb">
-              <div className="rrcv">{maskBalance(`$${(summary?.claimableNow ?? 0).toFixed(2)}`)}</div>
-              <button
-                className="cbtn"
-                disabled={claimBusy || !(summary?.claimableNow && summary.claimableNow > 0)}
-                onClick={handleClaimCommissions}
-                title={
-                  claimBusy
-                    ? "Claim in progress…"
-                    : summary?.claimableNow && summary.claimableNow > 0
-                    ? "Claim your commissions now"
-                    : "Nothing to claim yet — commissions appear here as your network purchases memberships."
-                }
-              >
-                {claimBusy ? "CLAIMING…" : "CLAIM"}
-              </button>
-            </div>
-          </div>
-          <div className="rrc r-div">
-            <div className="rrct">
-              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                  <rect x="1.5" y="4" width="9" height="7" rx="1" stroke="#8a9e82" strokeWidth="1.2" />
-                  <path d="M4 4V3a2 2 0 0 1 4 0v1" stroke="#8a9e82" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-                <div className="rrctype">Locked Commission</div>
-              </div>
-            </div>
-            <div className="rrcd">Vested balance released as your team volume grows</div>
-            <div className="rrcb">
-              <div className="rrcv">{maskBalance(`$${(summary?.lockedRemaining ?? 0).toFixed(2)}`)}</div>
-              <button className="cbtn" disabled title="Locked commissions unlock automatically on-chain">
-                LOCKED
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      <div className="ratl">Platform Activity</div>
-      <div className="atabs">
-        <div className={`at ${activeTab === "all" ? "active" : ""}`} onClick={() => setActiveTab("all")}>
-          All Feeds
+          <button
+            className={`privacy-eye mobile-privacy-eye${balancesHidden ? " off" : ""}`}
+            type="button"
+            onClick={togglePrivacy}
+            aria-label={balancesHidden ? "Show balances" : "Hide balances"}
+            title={balancesHidden ? "Show balances" : "Hide balances"}
+          >
+            {balancesHidden ? PRIVACY_EYE_OFF : PRIVACY_EYE_ON}
+          </button>
+          <Link href="/membership" className="mobile-upgrade-btn">
+            UPGRADE
+          </Link>
         </div>
-        <div className={`at ${activeTab === "bids" ? "active" : ""}`} onClick={() => setActiveTab("bids")}>
-          Bids
-        </div>
-        <div className={`at ${activeTab === "sales" ? "active" : ""}`} onClick={() => setActiveTab("sales")}>
-          Sales
+        <div className="rpb-wrap mobile-rpb-wrap">
+          <div className="rph mobile-rph">
+            <div className="rpl mobile-rpl">Current Progress</div>
+            <div className="rpp mobile-rpp">{progressPct}%</div>
+          </div>
+          <div className="rpb mobile-rpb">
+            <div className="rpf mobile-rpf" style={{ width: `${progressPct}%` }} />
+          </div>
         </div>
       </div>
-      <div id="activityFeed">
+    );
+  };
+
+  const renderMobileStatsRow = () => (
+    <div className="r-div mobile-rail-stats-block">
+      <div className="rs2">
+        <div className="rsb mobile-rsb">
+          <div className="rsbl">Total Rewarded</div>
+          <div className="rsbv">
+            {maskBalance(`$${(summary?.totalRewarded ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+          </div>
+        </div>
+        <div className="rsb mobile-rsb">
+          <div className="rsbl mobile-rsbl-points">
+            HNTR Points
+            <span className="info-i" data-tip="250 points per $1 spent on membership, 10 points per $1 commission earned.">
+              i
+            </span>
+          </div>
+          <div className="rsbv">
+            {maskBalance((pointsSummary?.hntrPoints ?? 0).toLocaleString())}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStatsRow = () => (
+    <div className="r-div mobile-rail-stats-block">
+      <div className="rs2">
+        <div className="rsb">
+          <div className="rsbl">Total Rewarded</div>
+          <div className="rsbv">
+            {maskBalance(`$${(summary?.totalRewarded ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+          </div>
+          <div className="rsbc">{summary?.networkSize ?? 0} network members</div>
+        </div>
+        <div className="rsb">
+          <div className="rsbl" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            HNTR Points
+            <span className="info-i" data-tip="250 points per $1 spent on membership, 10 points per $1 commission earned.">
+              i
+            </span>
+          </div>
+          <div className="rsbv">
+            {maskBalance((pointsSummary?.hntrPoints ?? 0).toLocaleString())}
+          </div>
+          <div className="rsbg">Lifetime</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderRewardCards = () => (
+    <>
+      <div className="rrc" style={{ marginBottom: "8px" }}>
+        <div className="rrct">
+          <div className="rrc-icon-row" style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+              <path
+                d="M4 6l1.5 1.5L8 4"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <div className="rrctype">Referral Commission</div>
+          </div>
+        </div>
+        <div className="rrcd">Claimable now from your direct referral network</div>
+        <div className="rrcb">
+          <div className="rrcv">{maskBalance(`$${(summary?.claimableNow ?? 0).toFixed(2)}`)}</div>
+          <button
+            className="cbtn"
+            disabled={claimBusy || !(summary?.claimableNow && summary.claimableNow > 0)}
+            onClick={handleClaimCommissions}
+            title={
+              claimBusy
+                ? "Claim in progress…"
+                : summary?.claimableNow && summary.claimableNow > 0
+                  ? "Claim your commissions now"
+                  : "Nothing to claim yet — commissions appear here as your network purchases memberships."
+            }
+          >
+            {claimBusy ? "CLAIMING…" : "CLAIM"}
+          </button>
+        </div>
+      </div>
+      <div className="rrc r-div">
+        <div className="rrct">
+          <div className="rrc-icon-row" style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <rect x="1.5" y="4" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M4 4V3a2 2 0 0 1 4 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <div className="rrctype">Locked Commission</div>
+          </div>
+        </div>
+        <div className="rrcd">Vested balance released as your team volume grows</div>
+        <div className="rrcb">
+          <div className="rrcv">{maskBalance(`$${(summary?.lockedRemaining ?? 0).toFixed(2)}`)}</div>
+          <button className="cbtn" disabled title="Locked commissions unlock automatically on-chain">
+            LOCKED
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  const renderRewardTiers = () => (
+    <>
+      <div className="rrtl">Active Rewards Tiers</div>
+      {renderRewardCards()}
+    </>
+  );
+
+  const renderPlatformActivity = (inline = false) => (
+    <>
+      {inline ? (
+        <div className="mobile-activity-head">
+          <div className="ratl">Platform Activity</div>
+          <div className="mobile-activity-live">
+            <span className="mobile-activity-live-dot" aria-hidden="true" />
+            LIVE
+          </div>
+        </div>
+      ) : (
+        <div className="ratl">Platform Activity</div>
+      )}
+      <div className={inline ? "mobile-activity-tabs" : "atabs"}>
+        <button
+          type="button"
+          className={`at ${activeTab === "all" ? "active" : ""}`}
+          onClick={() => setActiveTab("all")}
+        >
+          All Feeds
+        </button>
+        <button
+          type="button"
+          className={`at ${activeTab === "bids" ? "active" : ""}`}
+          onClick={() => setActiveTab("bids")}
+        >
+          Bids
+        </button>
+        <button
+          type="button"
+          className={`at ${activeTab === "sales" ? "active" : ""}`}
+          onClick={() => setActiveTab("sales")}
+        >
+          Sales
+        </button>
+      </div>
+      <div id={inline ? "mobileActivityFeed" : "activityFeed"} className={inline ? "mobile-activity-feed" : undefined}>
         <div className="arow arow-new">
           <div className="adot">🎨</div>
           <div className="ainf">
@@ -662,6 +803,43 @@ export default function MainLayout({
         </div>
       </div>
       <a className="vact">View Activity</a>
+    </>
+  );
+
+  const renderMobileHomeInline = () => (
+    <div className="mobile-home-rail-card">
+      {renderMobileProfileBlock()}
+      {renderMobileStatsRow()}
+      <div className="rrtl mobile-rrtl">Active Rewards Tiers</div>
+      <div className="mobile-rail-rewards-grid">{renderRewardCards()}</div>
+    </div>
+  );
+
+  const renderRightRail = () => (
+    <div
+      id="app-right-rail"
+      className={`rail${railOpen ? " rail-open" : ""}${isMobileView ? " mobile-rail-drawer" : ""}`}
+      style={
+        isMobileView
+          ? undefined
+          : {
+              transform: railOpen ? undefined : `translateX(${railTransX}%)`,
+              opacity: railOpacity,
+            }
+      }
+      onClick={(e) => e.stopPropagation()}
+    >
+      {!walletConnected ? (
+        <SignupCard />
+      ) : (
+        <>
+          {renderProfileCard()}
+          {renderStatsRow()}
+          {renderRewardTiers()}
+        </>
+      )}
+
+      {renderPlatformActivity()}
     </div>
   );
 
@@ -704,8 +882,8 @@ export default function MainLayout({
               marginLeft: "9px",
               fontFamily: "var(--fd)",
               fontWeight: 700,
-              fontSize: "13px",
-              letterSpacing: ".2em"
+              fontSize: "15px",
+              letterSpacing: ".18em"
             }}
           >
             HNTR
@@ -751,7 +929,7 @@ export default function MainLayout({
               )}
             </svg>
           </div>
-          {!hideRightRail && (
+          {!hideRightRail && !hideMobileRailToggle && (
             <div
               className={`nav-btn rail-toggle-btn${railOpen ? " active" : ""}`}
               title={railOpen ? "Close panel" : "Open panel"}
@@ -885,6 +1063,8 @@ export default function MainLayout({
               <path ref={navBarPathRef} d={buildNavBarPath(360, 180, false)} />
             </svg>
           </div>
+          <div className="mobile-nav-shell">
+            <div className="mobile-nav-dock">
           <div className="mobile-nav-track">
           <Link href="/" className={`si ${currentPage === "home" ? "active" : ""}`} data-page="home">
             <div className="si-icon">
@@ -924,7 +1104,7 @@ export default function MainLayout({
                 />
               </svg>
             </div>
-            <span className="si-label">Marketplace</span>
+            <span className="si-label">Market</span>
           </Link>
           
           <Link href="/pools" className={`si ${currentPage === "pools" ? "active" : ""}`} data-page="pools">
@@ -943,7 +1123,7 @@ export default function MainLayout({
                 <rect x="12.5" y="5" width="2" height="9" rx=".5" fill="currentColor" opacity=".5" />
               </svg>
             </div>
-            <span className="si-label">NFT Strategies</span>
+            <span className="si-label">Strategies</span>
           </Link>
           
           <Link
@@ -972,7 +1152,7 @@ export default function MainLayout({
             )}
           </Link>
           
-          <Link href="/membership" className={`si ${currentPage === "membership" ? "active" : ""}`} data-page="membership">
+          <Link href="/membership" className={`si si-mobile-extra ${currentPage === "membership" ? "active" : ""}`} data-page="membership">
             <div className="si-icon">
               <svg viewBox="0 0 16 16" fill="none">
                 <rect x="1.5" y="4" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
@@ -1013,7 +1193,7 @@ export default function MainLayout({
             )}
           </Link>
           
-          <div className="si-bot">
+          <div className="si-bot si-mobile-extra">
             <div className="si-sep" />
             <Link href="/learn" className={`si ${currentPage === "learn" ? "active" : ""}`} data-page="learn">
               <div className="si-icon">
@@ -1047,6 +1227,8 @@ export default function MainLayout({
             </div>
           </div>
           </div>
+            </div>
+          </div>
         </div>
 
         {/* Content Area */}
@@ -1061,10 +1243,14 @@ export default function MainLayout({
       </div>
 
       {profileAnchor &&
-        showMobileProfile &&
+        showMobileHomeRail &&
+        createPortal(renderMobileHomeInline(), profileAnchor)}
+
+      {activityAnchor &&
+        showMobileHomeActivity &&
         createPortal(
-          <div className="mobile-profile-card">{renderProfileCard()}</div>,
-          profileAnchor
+          <div className="mobile-home-activity">{renderPlatformActivity(true)}</div>,
+          activityAnchor
         )}
 
       <SignupOverlays />
@@ -1072,6 +1258,7 @@ export default function MainLayout({
       {portalMounted &&
         isMobileView &&
         !hideRightRail &&
+        !(currentPage === "home") &&
         createPortal(
           <>
             <div

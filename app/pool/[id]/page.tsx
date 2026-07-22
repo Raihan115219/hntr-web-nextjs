@@ -2,7 +2,7 @@
 
 import MainLayout from "../../components/MainLayout";
 import { getPoolById, OTHER_POOLS, type PoolDetail } from "../../../lib/pools-data";
-import { openDepositModal } from "../../../lib/deposit-modal";
+import { DEPOSIT_CTA_LABEL } from "../../../lib/deposit-modal";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useRouter } from "nextjs-toploader/app";
@@ -54,7 +54,6 @@ function PoolDetailView({ pool }: { pool: PoolDetail }) {
     return () => clearInterval(timer);
   }, []);
 
-  const handleDeposit = () => openDepositModal(pool.shortName, pool.floorEth);
 
   const goBack = () => {
     if (window.history.length > 1) {
@@ -88,7 +87,8 @@ function PoolDetailView({ pool }: { pool: PoolDetail }) {
 
   return (
     <MainLayout>
-      <div className="feed" id="feed-pooldetail">
+      <div className="pool-detail-page">
+      <div className="feed pool-detail-scroll" id="feed-pooldetail">
         <div className="breadcrumb">
           <div className="bc-head">
             <button className="bc-back" type="button" onClick={goBack} aria-label="Back to pools">
@@ -181,10 +181,10 @@ function PoolDetailView({ pool }: { pool: PoolDetail }) {
                   <div className="progress-fill" style={{ width: `${pool.progress}%` }}></div>
                 </div>
               </div>
-              <button className="deposit-btn" type="button" onClick={handleDeposit}>
-                MAKE A DEPOSIT NOW
+              <button className="deposit-btn pool-detail-deposit-inline" type="button" disabled>
+                {DEPOSIT_CTA_LABEL}
               </button>
-              <div className="deposit-note">
+              <div className="deposit-note pool-detail-deposit-note">
                 Liquidity locked until pool target or timeout ({pool.daysRemaining}d remaining)
               </div>
             </div>
@@ -320,6 +320,13 @@ function PoolDetailView({ pool }: { pool: PoolDetail }) {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="pool-detail-deposit-bar">
+        <button className="deposit-btn pool-detail-deposit-fixed" type="button" disabled>
+          {DEPOSIT_CTA_LABEL}
+        </button>
+      </div>
       </div>
     </MainLayout>
   );

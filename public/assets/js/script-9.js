@@ -5,7 +5,7 @@
     {t:'NFT Strategies',q:'How do NFT investment strategies work on HNTR?',
      a:"HNTR strategies pool community capital to co-invest in blue-chip NFTs. You pick a pool, deposit ETH, and share the upside when the asset sells — all tracked live on your dashboard."},
     {t:'Deposits & Pools',q:'How do I deposit into a pool?',
-     a:"Open any pool from <b>NFT Strategies</b>, hit “Make a Deposit”, and enter your ETH amount. Liquidity stays locked until the pool hits its target or times out (usually 7 days)."},
+     a:"Pool deposits are <b>coming soon</b>. Once live, you will open any pool from <b>NFT Strategies</b>, enter your ETH amount, and liquidity will stay locked until the pool hits its target or times out (usually 7 days)."},
     {t:'My Portfolio',q:'How is my portfolio doing?',
      a:"Your positions, APR and realized profit live on the <b>Home</b> and <b>My NFTs</b> pages. Want me to summarize your current holdings?"},
     {t:'Membership & Tiers',q:'What do membership tiers unlock?',

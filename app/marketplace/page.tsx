@@ -1,13 +1,74 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import MainLayout from "../components/MainLayout";
 import {
-  formatUsd,
   OPENSEA_COLLECTION_SLUGS,
   useOpenSeaCollections,
   useOpenSeaMarketplaceListings,
 } from "@/lib/opensea";
+
+const MARKET_FILTER_TABS = ["All", "CryptoPunks", "BAYC", "Azuki", "Fidenza"] as const;
+
+type MarketFilterTab = (typeof MARKET_FILTER_TABS)[number];
+
+const MARKET_ACTIVITY_ROWS = [
+  {
+    asset: "Pudgy Penguin #6523",
+    event: "PURCHASE",
+    eventClass: "ev-purchase",
+    price: "4.85 ETH",
+    source: "Blur.io",
+    time: "2m ago",
+  },
+  {
+    asset: "Bayc #3295",
+    event: "SALE",
+    eventClass: "ev-sale",
+    price: "2.30 ETH",
+    source: "OpenSea",
+    time: "15m ago",
+  },
+  {
+    asset: "Azuki #3295",
+    event: "SALE",
+    eventClass: "ev-sale",
+    price: "2.30 ETH",
+    source: "OpenSea",
+    time: "15m ago",
+  },
+  {
+    asset: "CryptoPunks #3295",
+    event: "SALE",
+    eventClass: "ev-sale",
+    price: "2.30 ETH",
+    source: "OpenSea",
+    time: "15m ago",
+  },
+  {
+    asset: "Normie #3295",
+    event: "SALE",
+    eventClass: "ev-sale",
+    price: "2.30 ETH",
+    source: "OpenSea",
+    time: "15m ago",
+  },
+] as const;
+
+function nftMatchesFilter(name: string, filter: MarketFilterTab) {
+  if (filter === "All") return true;
+
+  const keywords: Record<Exclude<MarketFilterTab, "All">, string[]> = {
+    CryptoPunks: ["CryptoPunk", "Punk"],
+    BAYC: ["Bored Ape", "BAYC", "Bayc"],
+    Azuki: ["Azuki"],
+    Fidenza: ["Fidenza"],
+  };
+
+  return keywords[filter].some((keyword) => name.includes(keyword));
+}
 
 function getListingUrl(source: string) {
   return source === "Blur" ? "https://blur.io" : "https://opensea.io";
@@ -90,6 +151,8 @@ const HARDCODED_COLLECTIONS = [
 ];
 
 export default function MarketplacePage() {
+  const { isConnected: walletConnected } = useAccount();
+  const [marketFilter, setMarketFilter] = useState<MarketFilterTab>("All");
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [checkedCollections, setCheckedCollections] = useState<Record<string, boolean>>({
     CryptoPunks: true,
@@ -140,6 +203,11 @@ export default function MarketplacePage() {
       };
     });
   }, [openSeaListings]);
+
+  const filteredNfts = useMemo(
+    () => nfts.filter((nft) => nftMatchesFilter(nft.name, marketFilter)),
+    [nfts, marketFilter],
+  );
 
   const totalFloorValue = useMemo(() => {
     if (!openSeaCollections) return 24_800_000;
@@ -195,7 +263,14 @@ export default function MarketplacePage() {
           </div>
           <div className="vault-hero-shade"></div>
           <div className="vault-title">HNTR MARKETPLACE</div>
-          <div className="vault-sub">Browse, collect & trade blue-chip NFTs</div>
+          <div className="vault-sub">Browse, collect &amp; trade blue-chip NFTs</div>
+          {!walletConnected ? (
+            <div className="vault-join">
+              <Link href="/membership" className="join-btn">
+                Join today
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         <div className="proto-stats">
@@ -230,9 +305,24 @@ export default function MarketplacePage() {
           </div>
         </div>
 
+        <div className="mkt-filter-tabs" role="tablist" aria-label="Filter by collection">
+          {MARKET_FILTER_TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={marketFilter === tab}
+              className={`mkt-filter-tab${marketFilter === tab ? " active" : ""}`}
+              onClick={() => setMarketFilter(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         <div className="vault-body">
           <div className="vault-left">
-            <div className={`panel panel-collections${collectionsOpen ? "" : " collapsed"}`}>
+            <div className={`panel panel-collections vault-collections-panel${collectionsOpen ? "" : " collapsed"}`}>
               <button
                 type="button"
                 className="panel-title panel-title-toggle"
@@ -282,7 +372,7 @@ export default function MarketplacePage() {
               </div>
             </div>
 
-            <div className="panel">
+            <div className="panel vault-portfolio-panel">
               <div className="panel-title">Portfolio Distribution</div>
               <div className="dist-bar">
                 <div className="dist-seg" style={{ width: "35%", background: "var(--olive)" }}></div>
@@ -349,7 +439,7 @@ export default function MarketplacePage() {
             </div>
 
             <div className="vault-grid">
-              {nfts.map((nft, i) => (
+              {filteredNfts.map((nft, i) => (
                 <div key={i} className="vc">
                   <div className="vc-img-wrap">
                     {nft.img ? (
@@ -415,10 +505,28 @@ export default function MarketplacePage() {
 
             <div className="net-act">
               <div className="net-act-hdr">
-                <div className="net-act-title">NETWORK ACTIVITY</div>
+                <div className="net-act-title">Marketplace Activities</div>
                 <div className="net-act-link">View All Activity →</div>
               </div>
-              <div className="net-table-scroll table-scroll">
+
+              <div className="mkt-act-mobile">
+                {MARKET_ACTIVITY_ROWS.map((row) => (
+                  <div key={row.asset} className="mkt-act-row">
+                    <div className="mkt-act-main">
+                      <div className="mkt-act-asset">{row.asset}</div>
+                      <div className="mkt-act-meta">
+                        <span className={`mkt-act-event ${row.eventClass}`}>{row.event}</span>
+                        <span className="mkt-act-source">
+                          {row.source} · {row.time}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mkt-act-price">{row.price}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="net-act-desktop net-table-scroll table-scroll">
                 <table className="net-table">
                   <thead>
                     <tr>
@@ -430,51 +538,20 @@ export default function MarketplacePage() {
                     </tr>
                   </thead>
                   <tbody id="netTable">
-                    <tr>
-                      <td className="td-asset">Pudgy Penguin #6523</td>
-                      <td>
-                        <span className="td-event ev-purchase">PURCHASE</span>
-                      </td>
-                      <td className="td-price">4.85 <span style={{ fontSize: "11px", color: "var(--t2)" }}>ETH</span></td>
-                      <td className="td-source">Blur.io</td>
-                      <td className="td-time">2m ago</td>
-                    </tr>
-                    <tr>
-                      <td className="td-asset">Bayc #3295</td>
-                      <td>
-                        <span className="td-event ev-sale">SALE</span>
-                      </td>
-                      <td className="td-price">2.30 <span style={{ fontSize: "11px", color: "var(--t2)" }}>ETH</span></td>
-                      <td className="td-source">OpenSea</td>
-                      <td className="td-time">15m ago</td>
-                    </tr>
-                    <tr>
-                      <td className="td-asset">Azuki #3295</td>
-                      <td>
-                        <span className="td-event ev-sale">SALE</span>
-                      </td>
-                      <td className="td-price">2.30 <span style={{ fontSize: "11px", color: "var(--t2)" }}>ETH</span></td>
-                      <td className="td-source">OpenSea</td>
-                      <td className="td-time">15m ago</td>
-                    </tr>
-                    <tr>
-                      <td className="td-asset">CryptoPunks #3295</td>
-                      <td>
-                        <span className="td-event ev-sale">SALE</span>
-                      </td>
-                      <td className="td-price">2.30 <span style={{ fontSize: "11px", color: "var(--t2)" }}>ETH</span></td>
-                      <td className="td-source">OpenSea</td>
-                      <td className="td-time">15m ago</td>
-                    </tr>
-                    <tr>
-                      <td className="td-asset">Normie #3295</td>
-                      <td>
-                        <span className="td-event ev-sale">SALE</span>
-                      </td>
-                      <td className="td-price">2.30 <span style={{ fontSize: "11px", color: "var(--t2)" }}>ETH</span></td>
-                      <td className="td-source">OpenSea</td>
-                      <td className="td-time">15m ago</td>
-                    </tr>
+                    {MARKET_ACTIVITY_ROWS.map((row) => (
+                      <tr key={row.asset}>
+                        <td className="td-asset">{row.asset}</td>
+                        <td>
+                          <span className={`td-event ${row.eventClass}`}>{row.event}</span>
+                        </td>
+                        <td className="td-price">
+                          {row.price.replace(" ETH", "")}{" "}
+                          <span style={{ fontSize: "11px", color: "var(--t2)" }}>ETH</span>
+                        </td>
+                        <td className="td-source">{row.source}</td>
+                        <td className="td-time">{row.time}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

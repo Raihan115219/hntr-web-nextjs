@@ -12,7 +12,7 @@ function CollectionHeroBanner() {
         <div className="hero-title" style={{ fontSize: "20px", letterSpacing: ".08em" }}>
           MY NFT COLLECTION
         </div>
-        <div className="hero-sub">Real-time oversight across all your NFT positions.</div>
+        <div className="hero-sub">Oversight across your positions.</div>
       </div>
     </div>
   );
