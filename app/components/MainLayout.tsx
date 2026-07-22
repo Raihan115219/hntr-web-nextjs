@@ -132,7 +132,7 @@ export default function MainLayout({
   const hideRightRail = currentPage === "network" || currentPage === "webinar";
   const showMobileHomeRail = currentPage === "home" && walletConnected && !hideRightRail && isMobileView;
   const showMobileHomeActivity = currentPage === "home" && !hideRightRail && isMobileView;
-  const hideMobileRailToggle = currentPage === "home" && isMobileView;
+  const hideMobileRailToggle = isMobileView;
 
   useBannerHoverEffect();
 
