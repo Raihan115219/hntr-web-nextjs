@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { useRouter } from "nextjs-toploader/app";
 import { ensureAuth } from "../../lib/auth";
 import { handleAppError } from "../../lib/errors";
+import { useConnectWallet } from "../../lib/useConnectWallet";
 import {
   purchaseOrUpgradeTier,
   getAmountDueUsd,
@@ -27,7 +28,15 @@ declare global {
 }
 
 function openSignupModal(step = 1) {
-  window.openSignup?.();
+  if (typeof window.openSignup === "function") {
+    window.openSignup();
+  } else {
+    document.getElementById("signupOverlay")?.classList.add("open");
+    for (let s = 1; s <= 3; s += 1) {
+      document.getElementById(`suStep${s}`)?.classList.toggle("on", s === step);
+    }
+    document.getElementById("suModal")?.classList.remove("wide");
+  }
   document.body.classList.add("modal-open");
   if (step !== 1) window.suGoto?.(step);
 }
@@ -37,6 +46,7 @@ type TierPurchasePhase = "wallet" | "loading";
 export default function MembershipPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { connectWallet } = useConnectWallet();
   const { summary, refetchSummary } = useDashboardData();
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [pendingTier, setPendingTier] = useState<string | null>(null);
@@ -70,11 +80,11 @@ export default function MembershipPage() {
     };
   }, []);
 
-  const ensureReadyToPurchase = async (): Promise<boolean> => {
+  const ensureReadyToPurchase = async (walletAddress: string): Promise<boolean> => {
     try {
       await ensureAuth();
       await api.get<{ profile: { username: string; tier: string } }>(
-        `/api/users/wallet/${address!.toLowerCase()}`,
+        `/api/users/wallet/${walletAddress.toLowerCase()}`,
         { auth: true },
       );
       return true;
@@ -87,8 +97,9 @@ export default function MembershipPage() {
     }
   };
 
-  const chooseTier = (tierName: string) => {
+  const purchaseTier = async (tierName: string) => {
     if (pendingTier) return;
+    if (selectedTier !== tierName) return;
     if (!canPurchaseOrUpgradeTier(tierName, currentTier)) {
       window.showToast?.({
         title: currentTierIndex > 0 ? "Cannot downgrade" : "Unavailable",
@@ -100,23 +111,25 @@ export default function MembershipPage() {
       });
       return;
     }
-    setSelectedTier(tierName);
-  };
 
-  const purchaseTier = async (tierName: string) => {
-    if (pendingTier) return;
-    if (selectedTier !== tierName) return;
-    if (!canPurchaseOrUpgradeTier(tierName, currentTier)) return;
-
-    if (!isConnected || !address) {
-      openSignupModal(1);
-      return;
+    let walletAddress = address;
+    if (!isConnected || !walletAddress) {
+      try {
+        walletAddress = await connectWallet();
+      } catch {
+        window.showToast?.({
+          title: "Wallet required",
+          sub: "Connect your wallet to purchase a membership tier.",
+          link: "",
+        });
+        return;
+      }
     }
 
     setPendingTier(tierName);
     setPurchasePhase(null);
     try {
-      const ready = await ensureReadyToPurchase();
+      const ready = await ensureReadyToPurchase(walletAddress);
       if (!ready) return;
 
       const result = await purchaseOrUpgradeTier(tierName, "USDT", {
@@ -134,7 +147,7 @@ export default function MembershipPage() {
       router.push("/network");
     } catch (error) {
       const resolved = handleAppError(error, "Purchase failed");
-      if (resolved.openSignup) window.openSignup?.();
+      if (resolved.openSignup) openSignupModal(2);
     } finally {
       setPendingTier(null);
       setPurchasePhase(null);
@@ -142,11 +155,25 @@ export default function MembershipPage() {
   };
 
   const handleTierAction = (tierName: string) => {
+    if (pendingTier) return;
+    if (!canPurchaseOrUpgradeTier(tierName, currentTier)) {
+      window.showToast?.({
+        title: currentTierIndex > 0 ? "Cannot downgrade" : "Unavailable",
+        sub:
+          currentTierIndex > 0
+            ? `You already hold ${currentTier}. Only higher tiers can be purchased.`
+            : "This package is not available.",
+        link: "",
+      });
+      return;
+    }
+
     if (selectedTier === tierName) {
       void purchaseTier(tierName);
       return;
     }
-    chooseTier(tierName);
+
+    setSelectedTier(tierName);
   };
 
   return (
@@ -176,6 +203,7 @@ export default function MembershipPage() {
               const isLower = currentTierIndex > 0 && tierIndex < currentTierIndex;
               const isUpgrade = currentTierIndex > 0 && tierIndex > currentTierIndex;
               const isSelected = selectedTier === tier.name;
+              const isPending = pendingTier === tier.name;
               const isHighlighted = isSelected;
               const amountDue = getAmountDueUsd(tier.name, currentTier);
               const disabled = !!pendingTier || isCurrent || isLower;
@@ -255,7 +283,8 @@ export default function MembershipPage() {
                     )}
                   </div>
                   <button
-                    className={`tier-btn${isSelected ? " purchase" : ""}`}
+                    type="button"
+                    className={`tier-btn${isSelected || isPending ? " purchase" : ""}`}
                     onClick={() => handleTierAction(tier.name)}
                     disabled={disabled}
                     title={
