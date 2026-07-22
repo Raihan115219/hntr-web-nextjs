@@ -891,7 +891,7 @@ body.dark .mkt-filter-tab.active {
 
   /* Main content clears floating bottom nav — page scroll (works in Cursor preview) */
   .content {
-    padding: 8px 8px 0 !important;
+    padding: 4px 4px 0 !important;
     width: 100%;
     min-width: 0;
     flex: none !important;
@@ -919,19 +919,27 @@ body.dark .mkt-filter-tab.active {
     min-height: auto !important;
     overflow: visible !important;
     touch-action: pan-y;
-    padding: 16px 16px calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 8px 10px calc(92px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   #feed-home.feed {
-    padding: 16px 16px calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 8px 10px calc(84px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   #feed-pools.feed,
   #feed-marketplace.feed,
-  #feed-collection.feed {
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+  #feed-collection.feed,
+  #feed-network.feed,
+  #feed-membership.feed {
+    padding: 8px 10px calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  #feed-network .page-body {
+    padding: 0 0 8px !important;
+  }
+
+  .page-body {
+    padding: 0 0 8px !important;
   }
 
   /* Right rail → drawer */
@@ -3925,10 +3933,6 @@ body.dark .mkt-filter-tab.active {
     min-width: 140px;
   }
 
-  .page-body {
-    padding: 0 0 8px !important;
-  }
-
   .coll-body {
     padding: 12px 0 40px !important;
   }
@@ -4040,7 +4044,7 @@ body.dark .mkt-filter-tab.active {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
-    padding: 16px 16px 20px !important;
+    padding: 8px 10px 20px !important;
   }
 
   body[data-page="pooldetail"] .pool-detail-deposit-inline {
@@ -4343,6 +4347,25 @@ body.dark .mkt-filter-tab.active {
 
   .sb.mobile-bottom-nav {
     padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .content {
+    padding: 2px 2px 0 !important;
+  }
+
+  .feed,
+  #feed-pools.feed,
+  #feed-marketplace.feed,
+  #feed-collection.feed,
+  #feed-network.feed,
+  #feed-membership.feed {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  #feed-home.feed {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
   }
 
   #toast-container {
