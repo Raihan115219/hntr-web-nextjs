@@ -133,7 +133,7 @@ export async function purchaseOrUpgradeTier(
   if (quote.insufficientBalance) {
     throw new MembershipFlowError(
       "INSUFFICIENT_BALANCE",
-      `You need ${quote.amountDueFormatted} ${quote.tokenSymbol} to ${quote.isUpgrade ? "upgrade to" : "purchase"} ${tierName}.`,
+      `You need ${quote.amountDueFormatted} ${quote.tokenSymbol} in your wallet to ${quote.isUpgrade ? "upgrade to" : "purchase"} ${tierName}.`,
     );
   }
 
