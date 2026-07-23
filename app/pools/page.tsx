@@ -178,16 +178,16 @@ export default function PoolsPage() {
             <div className="ss">
               <div className="ss-lbl">Total ETH Raised</div>
               <div className="ss-val">
-                12.4 <span className="eth-ic"></span>
+                0 <span className="eth-ic"></span>
               </div>
               <div className="ss-chg" style={{ color: "var(--t0)" }}>
-                ≈ $28,520
+                ≈ $0
               </div>
             </div>
             <div className="ss">
               <div className="ss-lbl">NFT Strategy Available</div>
               <div className="ss-val">
-                14 <span className="ss-unit">Pools</span>
+                0 <span className="ss-unit">Pools</span>
               </div>
               <div className="ss-chg" style={{ color: "var(--t0)" }}>
                 —
@@ -196,7 +196,7 @@ export default function PoolsPage() {
             <div className="ss">
               <div className="ss-lbl">Avg. LTV</div>
               <div className="ss-val">
-                42.8<span className="ss-unit">%</span>
+                0<span className="ss-unit">%</span>
               </div>
               <div className="ss-chg" style={{ color: "var(--t0)" }}>
                 Collateral ratio
@@ -204,9 +204,9 @@ export default function PoolsPage() {
             </div>
             <div className="ss">
               <div className="ss-lbl">Total Users</div>
-              <div className="ss-val">2,193</div>
-              <div className="ss-chg" style={{ color: "var(--green)" }}>
-                ↑ +2.4%
+              <div className="ss-val">0</div>
+              <div className="ss-chg" style={{ color: "var(--t0)" }}>
+                —
               </div>
             </div>
           </div>
