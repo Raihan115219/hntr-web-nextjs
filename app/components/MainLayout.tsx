@@ -711,7 +711,11 @@ export default function MainLayout({
     );
   };
 
-  const renderRewardCards = () => (
+  const renderRewardCards = () => {
+    const poolRewardsAmount = leadershipStatus?.estimatedPayoutUSD ?? 0;
+    const hasPoolRewards = !!(leadershipStatus?.hasShares && poolRewardsAmount > 0);
+
+    return (
     <>
       <div className="rrc" style={{ marginBottom: "8px" }}>
         <div className="rrct">
@@ -755,19 +759,28 @@ export default function MainLayout({
               <rect x="1.5" y="4" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="1.2" />
               <path d="M4 4V3a2 2 0 0 1 4 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-            <div className="rrctype">Locked Commission</div>
+            <div className="rrctype">Pool Rewards</div>
           </div>
         </div>
-        <div className="rrcd">Vested balance released as your team volume grows</div>
+        <div className="rrcd">Proportional distribution from NFT strategy pools</div>
         <div className="rrcb">
-          <div className="rrcv">{maskBalance(`$${(summary?.lockedRemaining ?? 0).toFixed(2)}`)}</div>
-          <button className="cbtn" disabled title="Locked commissions unlock automatically on-chain">
-            LOCKED
+          <div className="rrcv">{maskBalance(`$${poolRewardsAmount.toFixed(2)}`)}</div>
+          <button
+            className="cbtn"
+            disabled={!hasPoolRewards}
+            title={
+              hasPoolRewards
+                ? "Pool rewards are distributed monthly from the leadership pool"
+                : "Reach Hunter rank or above to earn pool rewards"
+            }
+          >
+            CLAIM
           </button>
         </div>
       </div>
     </>
-  );
+    );
+  };
 
   const renderRewardTiers = () => (
     <>
