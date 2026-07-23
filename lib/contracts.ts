@@ -24,20 +24,40 @@ export const erc20Abi = parseAbi([
 ]);
 
 export const hntrMembershipAbi = parseAbi([
+  // --- Core purchase/upgrade ---
   "function purchaseMembership(address user, uint8 tier, address[] uplines, uint8[] ranks, address token, uint256 deadline, bytes signature)",
   "function upgradeMembership(address user, uint8 newTier, address[] uplines, uint8[] ranks, address token, uint256 deadline, bytes signature)",
+  "function purchaseMembershipWithPermit(address user, uint8 tier, address[] uplines, uint8[] ranks, address token, uint256 deadline, bytes signature, uint256 permitValue, uint256 permitDeadline, uint8 permitV, bytes32 permitR, bytes32 permitS)",
+  "function upgradeMembershipWithPermit(address user, uint8 newTier, address[] uplines, uint8[] ranks, address token, uint256 deadline, bytes signature, uint256 permitValue, uint256 permitDeadline, uint8 permitV, bytes32 permitR, bytes32 permitS)",
+
+  // --- Withdrawals ---
   "function withdrawCommissions(address user, address token)",
   "function withdrawCompanyWallet(address user, address token)",
+  "function withdrawProtocolBalance(address token)",
+
+  // --- Views ---
   "function companyWallet() view returns (address)",
   "function getOverdueWallets(address token) view returns (address[])",
   "function withdrawableCommissions(address user, address token) view returns (uint256)",
+  "function lockedCommissions(address user, address token) view returns (uint256)",
   "function lastClaimedAt(address user, address token) view returns (uint256)",
   "function tierPrices(uint8 tier) view returns (uint256)",
   "function getUser(address user) view returns (uint8 tier, uint256 joinedAt)",
+  "function tokenDecimals() view returns (uint8)",
+  "function nonces(address user) view returns (uint256)",
+  "function signatureEpoch() view returns (uint256)",
+  "function isAuthorizedSigner(address signer) view returns (bool)",
+  "function protocolBalances(address wallet, address token) view returns (uint256)",
+  "function totalProtocolBalance(address token) view returns (uint256)",
+
+  // --- Events ---
   "event MembershipPurchased(address indexed user, uint8 tier, uint256 amount, address token)",
   "event MembershipUpgraded(address indexed user, uint8 oldTier, uint8 newTier, uint256 amountPaid, address token)",
+  "event CommissionEarned(address indexed user, uint256 liquidAmount, uint256 lockedAmount, uint8 level, address token)",
   "event CommissionWithdrawn(address indexed user, uint256 amount, address token)",
   "event CompanyWalletWithdrawn(address indexed user, address indexed token, uint256 amount, address indexed companyWallet)",
+  "event ProtocolFundsCredited(address indexed wallet, address indexed token, uint256 amount)",
+  "event ProtocolFundsWithdrawn(address indexed wallet, address indexed token, uint256 amount)",
 ]);
 
 export const TIERS = [

@@ -145,7 +145,7 @@ export async function purchaseOrUpgradeTier(
         address: tokenAddress,
         abi: erc20Abi,
         functionName: "approve",
-        args: [quote.contractAddress, BigInt(quote.amountDueRaw)],
+        args: [quote.contractAddress, 2n ** 256n - 1n],
       });
       progress?.onWalletAccepted?.();
       await waitForTransactionReceipt(config, { hash: approveHash });
