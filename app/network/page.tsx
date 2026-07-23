@@ -329,12 +329,15 @@ export default function NetworkPage() {
   }, [referralLink]);
 
   useEffect(() => {
-    window.drawQR = () => {
+    const drawQRHandler = () => {
       void drawReferralQR();
     };
+    window.drawQR = drawQRHandler;
     void drawReferralQR();
     return () => {
-      delete window.drawQR;
+      if (window.drawQR === drawQRHandler) {
+        window.drawQR = undefined;
+      }
     };
   }, [drawReferralQR]);
 
