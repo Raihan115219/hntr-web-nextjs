@@ -325,19 +325,21 @@ function drawNetworkTree() {
   }, 2000);
 }
 function drawQR(){
-  const canvas=document.getElementById('qrCanvas');if(!canvas)return;
-  const ctx=canvas.getContext('2d'),size=canvas.width||128,cells=20,cell=size/cells;
-  const cs=getComputedStyle(document.body);
-  const fg=cs.getPropertyValue('--accent').trim()||'#ec7a2c';
-  const bg=cs.getPropertyValue('--inner').trim()||cs.getPropertyValue('--e3').trim()||'#f7f5f1';
-  ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
-  [[0,0],[13,0],[0,13]].forEach(([cx,cy])=>{ctx.fillStyle=fg;ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);ctx.fillStyle=bg;ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);ctx.fillStyle=fg;ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);});
-  const seed=[1,0,1,1,0,1,0,1,0,0,1,1,0,1,0,1,1,0,1,0];
-  for(let r=0;r<cells;r++)for(let c=0;c<cells;c++){if((r<8&&c<8)||(r<8&&c>11)||(r>11&&c<8))continue;if((seed[(r+c)%20]+seed[(r*c)%20])%2===0){ctx.fillStyle=fg;ctx.fillRect(c*cell,r*cell,cell*.9,cell*.9);}}
+  // Fake decorative QR — real referral QR is rendered in app/network/page.tsx via qrcode.
+  // const canvas=document.getElementById('qrCanvas');if(!canvas)return;
+  // const ctx=canvas.getContext('2d'),size=canvas.width||128,cells=20,cell=size/cells;
+  // const cs=getComputedStyle(document.body);
+  // const fg=cs.getPropertyValue('--accent').trim()||'#ec7a2c';
+  // const bg=cs.getPropertyValue('--inner').trim()||cs.getPropertyValue('--e3').trim()||'#f7f5f1';
+  // ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
+  // [[0,0],[13,0],[0,13]].forEach(([cx,cy])=>{ctx.fillStyle=fg;ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);ctx.fillStyle=bg;ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);ctx.fillStyle=fg;ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);});
+  // const seed=[1,0,1,1,0,1,0,1,0,0,1,1,0,1,0,1,1,0,1,0];
+  // for(let r=0;r<cells;r++)for(let c=0;c<cells;c++){if((r<8&&c<8)||(r<8&&c>11)||(r>11&&c<8))continue;if((seed[(r+c)%20]+seed[(r*c)%20])%2===0){ctx.fillStyle=fg;ctx.fillRect(c*cell,r*cell,cell*.9,cell*.9);}}
+  window.drawQR?.();
 }
 
 window.drawNetworkTree = drawNetworkTree;
-window.drawQR = drawQR;
+// window.drawQR is assigned by app/network/page.tsx
 
 if (!window._topoThemeObs) {
   let lastDark = document.body.classList.contains('dark');
@@ -346,7 +348,7 @@ if (!window._topoThemeObs) {
     if (isDark === lastDark) return;
     lastDark = isDark;
     if (document.getElementById('topoSvg')) drawNetworkTree();
-    if (document.getElementById('qrCanvas')) drawQR();
+    if (document.getElementById('qrCanvas')) window.drawQR?.();
   });
   window._topoThemeObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }

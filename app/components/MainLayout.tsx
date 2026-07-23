@@ -483,12 +483,12 @@ export default function MainLayout({
     }
   };
 
-  const lockedNavClick = (e: React.MouseEvent) => {
-    if (!walletConnected) {
-      e.preventDefault();
-      openSignup();
-    }
-  };
+  // const lockedNavClick = (e: React.MouseEvent) => {
+  //   if (!walletConnected) {
+  //     e.preventDefault();
+  //     openSignup();
+  //   }
+  // };
 
   // Toggle theme function
   const toggleTheme = () => {
@@ -1128,10 +1128,11 @@ export default function MainLayout({
           
           <Link
             href="/collection"
-            className={`si ${currentPage === "collection" ? "active" : ""}${!walletConnected ? " locked" : ""}`}
+            className={`si ${currentPage === "collection" ? "active" : ""}`}
+            // className={`si ${currentPage === "collection" ? "active" : ""}${!walletConnected ? " locked" : ""}`}
             data-page="collection"
-            onClick={lockedNavClick}
-            aria-disabled={!walletConnected}
+            // onClick={lockedNavClick}
+            // aria-disabled={!walletConnected}
           >
             <div className="si-icon">
               <svg viewBox="0 0 16 16" fill="none">
@@ -1142,14 +1143,14 @@ export default function MainLayout({
               </svg>
             </div>
             <span className="si-label">MY NFTs</span>
-            {!walletConnected && (
+            {/* {!walletConnected && (
               <span className="si-lock">
                 <svg viewBox="0 0 14 14" fill="none">
                   <rect x="2.5" y="6" width="9" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
                   <path d="M4.5 6V4.3a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" strokeWidth="1.3" />
                 </svg>
               </span>
-            )}
+            )} */}
           </Link>
           
           <Link href="/membership" className={`si si-mobile-extra ${currentPage === "membership" ? "active" : ""}`} data-page="membership">
@@ -1166,10 +1167,11 @@ export default function MainLayout({
           
           <Link
             href="/network"
-            className={`si ${currentPage === "network" ? "active" : ""}${!walletConnected ? " locked" : ""}`}
+            className={`si ${currentPage === "network" ? "active" : ""}`}
+            // className={`si ${currentPage === "network" ? "active" : ""}${!walletConnected ? " locked" : ""}`}
             data-page="network"
-            onClick={lockedNavClick}
-            aria-disabled={!walletConnected}
+            // onClick={lockedNavClick}
+            // aria-disabled={!walletConnected}
           >
             <div className="si-icon">
               <svg viewBox="0 0 16 16" fill="none">
@@ -1183,14 +1185,14 @@ export default function MainLayout({
               </svg>
             </div>
             <span className="si-label">Network</span>
-            {!walletConnected && (
+            {/* {!walletConnected && (
               <span className="si-lock">
                 <svg viewBox="0 0 14 14" fill="none">
                   <rect x="2.5" y="6" width="9" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
                   <path d="M4.5 6V4.3a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" strokeWidth="1.3" />
                 </svg>
               </span>
-            )}
+            )} */}
           </Link>
           
           <div className="si-bot si-mobile-extra">

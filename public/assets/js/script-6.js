@@ -51,8 +51,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.ge
 function go(page){
   if(page===cur)return;
   var t0=document.querySelector('.si[data-page="'+page+'"]');
-  if(t0&&t0.classList.contains('locked')){ if(typeof openSignup==='function')openSignup(); return; }
-  if(t0&&t0.classList.contains('locked')){ if(typeof openSignup==='function')openSignup(); return; }
+  // if(t0&&t0.classList.contains('locked')){ if(typeof openSignup==='function')openSignup(); return; }
+  // if(t0&&t0.classList.contains('locked')){ if(typeof openSignup==='function')openSignup(); return; }
   animateLoader(()=>{
     document.getElementById('panel-'+cur).classList.remove('active');
     document.getElementById('panel-'+page).classList.add('active');
@@ -510,17 +510,19 @@ function drawNetworkTree() {
 setTimeout(drawNetworkTree, 200);
 
 function drawQR(){
-  const canvas=document.getElementById('qrCanvas');if(!canvas)return;
-  const ctx=canvas.getContext('2d'),size=160,cells=20,cell=size/cells;
-  const cs=getComputedStyle(document.documentElement);
-  const olive=cs.getPropertyValue('--olive').trim()||'#5E6B55';
-  const bg=cs.getPropertyValue('--e3').trim()||'#f4f2ee';
-  ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
-  [[0,0],[13,0],[0,13]].forEach(([cx,cy])=>{ctx.fillStyle=olive;ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);ctx.fillStyle=bg;ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);ctx.fillStyle=olive;ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);});
-  const seed=[1,0,1,1,0,1,0,1,0,0,1,1,0,1,0,1,1,0,1,0];
-  for(let r=0;r<cells;r++)for(let c=0;c<cells;c++){if((r<8&&c<8)||(r<8&&c>11)||(r>11&&c<8))continue;if((seed[(r+c)%20]+seed[(r*c)%20])%2===0){ctx.fillStyle=olive;ctx.fillRect(c*cell,r*cell,cell*.9,cell*.9);}}
+  // Fake decorative QR — real referral QR is rendered in app/network/page.tsx via qrcode.
+  // const canvas=document.getElementById('qrCanvas');if(!canvas)return;
+  // const ctx=canvas.getContext('2d'),size=160,cells=20,cell=size/cells;
+  // const cs=getComputedStyle(document.documentElement);
+  // const olive=cs.getPropertyValue('--olive').trim()||'#5E6B55';
+  // const bg=cs.getPropertyValue('--e3').trim()||'#f4f2ee';
+  // ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
+  // [[0,0],[13,0],[0,13]].forEach(([cx,cy])=>{ctx.fillStyle=olive;ctx.fillRect(cx*cell,cy*cell,7*cell,7*cell);ctx.fillStyle=bg;ctx.fillRect((cx+1)*cell,(cy+1)*cell,5*cell,5*cell);ctx.fillStyle=olive;ctx.fillRect((cx+2)*cell,(cy+2)*cell,3*cell,3*cell);});
+  // const seed=[1,0,1,1,0,1,0,1,0,0,1,1,0,1,0,1,1,0,1,0];
+  // for(let r=0;r<cells;r++)for(let c=0;c<cells;c++){if((r<8&&c<8)||(r<8&&c>11)||(r>11&&c<8))continue;if((seed[(r+c)%20]+seed[(r*c)%20])%2===0){ctx.fillStyle=olive;ctx.fillRect(c*cell,r*cell,cell*.9,cell*.9);}}
+  window.drawQR?.();
 }
-setTimeout(drawQR,300);
+// setTimeout(drawQR,300);
 
 const TXH=[
   {dt:'2024-05-12 14:32:01',type:'POOL_REWARD',source:'Global Liquidity Pool A',amount:'+$142.50'},
@@ -922,17 +924,17 @@ function setWalletState(connected) {
 // signed-out sign-up card. Platform Activity is always preserved.
 function applyRailAuth(connected){
   // Lock NFT collection + network nav items when disconnected
-  ['collection','network'].forEach(function(pg){
-    var si=document.querySelector('.si[data-page="'+pg+'"]');
-    if(!si)return;
-    si.classList.toggle('locked',!connected);
-    var lk=si.querySelector('.si-lock');
-    if(!connected && !lk){
-      lk=document.createElement('span');lk.className='si-lock';
-      lk.innerHTML='<svg viewBox="0 0 14 14" fill="none"><rect x="2.5" y="6" width="9" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 6V4.3a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" stroke-width="1.3"/></svg>';
-      si.appendChild(lk);
-    } else if(connected && lk){ lk.remove(); }
-  });
+  // ['collection','network'].forEach(function(pg){
+  //   var si=document.querySelector('.si[data-page="'+pg+'"]');
+  //   if(!si)return;
+  //   si.classList.toggle('locked',!connected);
+  //   var lk=si.querySelector('.si-lock');
+  //   if(!connected && !lk){
+  //     lk=document.createElement('span');lk.className='si-lock';
+  //     lk.innerHTML='<svg viewBox="0 0 14 14" fill="none"><rect x="2.5" y="6" width="9" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 6V4.3a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" stroke-width="1.3"/></svg>';
+  //     si.appendChild(lk);
+  //   } else if(connected && lk){ lk.remove(); }
+  // });
   document.querySelectorAll('.rail').forEach(function(rail){
     var ratl = rail.querySelector('.ratl');
     if(!ratl) return;

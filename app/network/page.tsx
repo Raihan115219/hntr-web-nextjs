@@ -2,7 +2,8 @@
 
 import MainLayout from "../components/MainLayout";
 import { BANNER_IMAGES } from "../components/banner-images";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import { useRouter } from "nextjs-toploader/app";
 import { handleAppError } from "../../lib/errors";
 import {
@@ -42,7 +43,7 @@ const TX_TYPE_LABEL: Record<TransactionEntry["type"], string> = {
 
 function formatTxDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString("en-US", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -291,21 +292,60 @@ export default function NetworkPage() {
     window.drawNetworkTree?.();
   }, [treeData]);
 
-  const referralLink =
-    typeof window !== "undefined" && summary?.username
-      ? `${window.location.origin}/?ref=${summary.username}`
-      : "Connect your wallet to get your link";
+  const [siteOrigin, setSiteOrigin] = useState("");
+
+  useEffect(() => {
+    setSiteOrigin(window.location.origin);
+  }, []);
+
+  const referralLink = useMemo(() => {
+    if (!siteOrigin || !summary?.username) return "";
+    return `${siteOrigin}/?ref=${summary.username}`;
+  }, [siteOrigin, summary?.username]);
+
+  const drawReferralQR = useCallback(async () => {
+    const canvas = document.getElementById("qrCanvas") as HTMLCanvasElement | null;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!referralLink) {
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    const cs = getComputedStyle(document.body);
+    const fg = cs.getPropertyValue("--accent").trim() || "#ec7a2c";
+    const bg = cs.getPropertyValue("--inner").trim() || cs.getPropertyValue("--e3").trim() || "#f7f5f1";
+
+    try {
+      await QRCode.toCanvas(canvas, referralLink, {
+        width: canvas.width,
+        margin: 1,
+        color: { dark: fg, light: bg },
+      });
+    } catch (error) {
+      console.error("Failed to draw referral QR:", error);
+    }
+  }, [referralLink]);
+
+  useEffect(() => {
+    window.drawQR = () => {
+      void drawReferralQR();
+    };
+    void drawReferralQR();
+    return () => {
+      delete window.drawQR;
+    };
+  }, [drawReferralQR]);
 
   const referralLinkDisplay = useMemo(() => {
     if (!summary?.username) return "Connect your wallet to get your link";
-    const host =
-      typeof window !== "undefined"
-        ? window.location.host.replace(/^www\./, "")
-        : "hntr.art";
+    if (!siteOrigin) return "Connect your wallet to get your link";
+    const host = siteOrigin.replace(/^https?:\/\//, "").replace(/^www\./, "");
     const full = `${host}/?ref=${summary.username}`;
     if (full.length <= 42) return full;
     return `${full.slice(0, 22)}…${full.slice(-4)}`;
-  }, [summary?.username]);
+  }, [siteOrigin, summary?.username]);
 
   const copyRef = () => {
     if (!summary?.username) {
@@ -751,7 +791,7 @@ export default function NetworkPage() {
             <div className="ref-card">
               <div className="ref-title">Referral Link</div>
               <div className="ref-link-row">
-                <div className="ref-link-box" title={referralLink}>
+                <div className="ref-link-box" title={referralLink || "Connect your wallet to get your link"}>
                   {referralLinkDisplay}
                 </div>
                 <button type="button" className="ref-copy-btn" onClick={copyRef} aria-label="Copy referral link">
