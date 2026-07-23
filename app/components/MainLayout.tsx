@@ -12,7 +12,7 @@ import NotificationSystem from "./NotificationSystem";
 import DepositModal from "./DepositModal";
 import { clearStoredAuth } from "../../lib/api";
 import { handleAppError } from "../../lib/errors";
-import { useDashboardData, useClaimCommissions, usePointsSummary } from "../../lib/rewards";
+import { useDashboardData, useClaimCommissions, useLeadershipStatus, usePointsSummary } from "../../lib/rewards";
 import type { StandardToastData } from "../../lib/notification-data";
 
 const MOBILE_MQ = "(max-width: 900px)";
@@ -53,6 +53,14 @@ declare global {
 function shortenAddress(address?: string) {
   if (!address) return "";
   return `${address.slice(0, 6)}...${address.slice(-3)}`;
+}
+
+function formatRankSubtitle(rank?: string | null) {
+  if (!rank || rank === "None") return "Unregistered";
+  return rank
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 const PRIVACY_EYE_ON = (
@@ -101,6 +109,7 @@ export default function MainLayout({
   const WALLET_ADDRESS = shortenAddress(address);
   const { summary, refetchSummary } = useDashboardData();
   const { data: pointsSummary } = usePointsSummary();
+  const { data: leadershipStatus } = useLeadershipStatus();
   const claimCommissions = useClaimCommissions();
   const [claimBusy, setClaimBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
@@ -542,12 +551,7 @@ export default function MainLayout({
     const progress = summary?.progress;
     const progressPct = progress?.percent ?? 0;
     const rankLabel = summary?.rank || "None";
-    const rankBadge =
-      rankLabel.toLowerCase().includes("elite")
-        ? "ELITE"
-        : rankLabel !== "None"
-          ? rankLabel.split(" ").pop()?.toUpperCase()
-          : null;
+    const rankBadge = rankLabel.toLowerCase().includes("elite") ? "ELITE" : null;
 
     return (
       <div className="r-div rail-profile-block mobile-rail-profile">
@@ -558,7 +562,7 @@ export default function MainLayout({
               <div className="rn mobile-rn">{summary?.username || "Unregistered"}</div>
               {rankBadge ? <span className="mobile-rank-badge">{rankBadge}</span> : null}
             </div>
-            <div className="rt mobile-rt">{rankLabel}</div>
+            <div className="rt mobile-rt">{formatRankSubtitle(rankLabel)}</div>
           </div>
           <button
             className={`privacy-eye mobile-privacy-eye${balancesHidden ? " off" : ""}`}
@@ -596,12 +600,7 @@ export default function MainLayout({
           </div>
         </div>
         <div className="rsb mobile-rsb">
-          <div className="rsbl mobile-rsbl-points">
-            HNTR Points
-            <span className="info-i" data-tip="250 points per $1 spent on membership, 10 points per $1 commission earned.">
-              i
-            </span>
-          </div>
+          <div className="rsbl">HNTR Points</div>
           <div className="rsbv">
             {maskBalance((pointsSummary?.hntrPoints ?? 0).toLocaleString())}
           </div>
@@ -635,6 +634,82 @@ export default function MainLayout({
       </div>
     </div>
   );
+
+  const renderMobileRewardCards = () => {
+    const poolRewardsAmount = leadershipStatus?.estimatedPayoutUSD ?? 0;
+    const hasPoolRewards = !!(leadershipStatus?.hasShares && poolRewardsAmount > 0);
+
+    return (
+      <>
+        <div className="rrc mobile-rrc">
+          <div
+            className="rrc-icon-row"
+            style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "8px" }}
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.3" />
+              <path
+                d="M4.6 7l1.6 1.6L9.4 5.4"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <div className="rrctype">Referral Commission</div>
+          </div>
+          <div className="rrcv mobile-rrcv">
+            {maskBalance(`$${(summary?.claimableNow ?? 0).toFixed(2)}`)}
+          </div>
+          <button
+            className="cbtn"
+            disabled={claimBusy || !(summary?.claimableNow && summary.claimableNow > 0)}
+            onClick={handleClaimCommissions}
+            title={
+              claimBusy
+                ? "Claim in progress…"
+                : summary?.claimableNow && summary.claimableNow > 0
+                  ? "Claim your commissions now"
+                  : "Nothing to claim yet"
+            }
+          >
+            {claimBusy ? "CLAIMING…" : "CLAIM"}
+          </button>
+        </div>
+        <div className="rrc mobile-rrc r-div">
+          <div
+            className="rrc-icon-row"
+            style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "8px" }}
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+              <rect x="2.5" y="5" width="9" height="6.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+              <path
+                d="M4.5 5V3.7a2.5 2.5 0 0 1 5 0V5"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="rrctype">Pool Rewards</div>
+          </div>
+          <div className="rrcv mobile-rrcv">
+            {maskBalance(`$${poolRewardsAmount.toFixed(2)}`)}
+          </div>
+          <button
+            className="cbtn"
+            disabled={!hasPoolRewards}
+            title={
+              hasPoolRewards
+                ? "Pool rewards are distributed monthly from the leadership pool"
+                : "Reach Hunter rank or above to earn pool rewards"
+            }
+          >
+            CLAIM
+          </button>
+        </div>
+      </>
+    );
+  };
 
   const renderRewardCards = () => (
     <>
@@ -807,8 +882,7 @@ export default function MainLayout({
     <div className="mobile-home-rail-card">
       {renderMobileProfileBlock()}
       {renderMobileStatsRow()}
-      <div className="rrtl mobile-rrtl">Active Rewards Tiers</div>
-      <div className="mobile-rail-rewards-grid">{renderRewardCards()}</div>
+      <div className="mobile-rail-rewards-grid">{renderMobileRewardCards()}</div>
     </div>
   );
 

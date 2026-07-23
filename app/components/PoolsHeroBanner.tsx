@@ -20,8 +20,8 @@ function PoolsHeroBanner() {
       <div className="pools-hero-content">
         <div className="pools-hero-title">NFT STRATEGIES</div>
         <div className="pools-hero-sub">
-          An automatic mechanism designed to accumulate assets, sell them for profits and share with
-          community. Decentralized and Forever.
+          An automatic mechanism designed to accumulate assets, sell for profit and share with
+          community.
         </div>
       </div>
     </div>

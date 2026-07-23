@@ -12,6 +12,10 @@ import {
 } from "@/lib/opensea";
 
 const RING_CIRC = 201.06;
+const LISTING_SRC_LOGOS = [
+  "/assets/hntr-src/logo-opensea.png",
+  "/assets/hntr-src/logo-blur.png",
+] as const;
 
 type CoOwnedNft = {
   id: number;
@@ -668,7 +672,7 @@ export default function CollectionPage() {
                       Loading live OpenSea data...
                     </div>
                   )}
-                  {coOwnedNfts.map((nft) => {
+                  {coOwnedNfts.map((nft, index) => {
                     const animatedPct = ringPcts[nft.id] ?? 0;
                     const ringOffset = RING_CIRC - (animatedPct / 100) * RING_CIRC;
 
@@ -695,7 +699,7 @@ export default function CollectionPage() {
                             </div>
                           )}
                           <div className="nc-pool-tag">{nft.pool}</div>
-                          <div className="nc-ring-wrap">
+                          <div className="nc-ring-wrap nc-desktop-only">
                             <svg className="nc-ring-svg" viewBox="0 0 80 80" width="70" height="70">
                               <circle className="nc-ring-bg" cx="40" cy="40" r="32"></circle>
                               <circle
@@ -718,7 +722,7 @@ export default function CollectionPage() {
                             </svg>
                           </div>
                         </div>
-                        <div className="nc-body">
+                        <div className="nc-body nc-desktop-only">
                           <div className="nc-name">{nft.name}</div>
                           <div className="nc-id">{nft.tokenId}</div>
                           <div className="nc-stats">
@@ -755,11 +759,43 @@ export default function CollectionPage() {
                         </div>
                         <button
                           type="button"
-                          className="nc-view-btn"
+                          className="nc-view-btn nc-desktop-only"
                           onClick={() => goToPoolDetail(nft.id)}
                         >
                           VIEW DETAILS
                         </button>
+                        <div className="nc-mobile-body">
+                          <div className="nc-m-name">
+                            {nft.name} {nft.tokenId}
+                          </div>
+                          <div className="nc-m-row">
+                            <span className="nc-m-lbl">MY SHARE</span>
+                            <span className="nc-m-val">
+                              {nft.myShare} ETH
+                            </span>
+                          </div>
+                          <div className="nc-m-bar">
+                            <div className="nc-m-fill" style={{ width: `${nft.sharePct}%` }} />
+                          </div>
+                          <div className="nc-m-row nc-m-owned">
+                            <span className="nc-m-lbl">% OWNED</span>
+                            <span className="nc-m-pct">{nft.sharePct}%</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="nc-m-listing-btn"
+                            onClick={() => goToPoolDetail(nft.id)}
+                          >
+                            <img
+                              className="nc-m-listing-icon"
+                              src={LISTING_SRC_LOGOS[index % LISTING_SRC_LOGOS.length]}
+                              alt=""
+                              width={13}
+                              height={13}
+                            />
+                            VIEW LISTING
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

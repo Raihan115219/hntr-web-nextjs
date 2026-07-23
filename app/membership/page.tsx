@@ -187,11 +187,22 @@ export default function MembershipPage() {
             mosaicId="heroMosaic"
           >
             <div className="hero-title">Membership Packages</div>
-            <div className="hero-sub">
-              {currentTier
-                ? `You hold ${currentTier}. Upgrade prices show only the difference you still owe — downgrades are not available.`
-                : "Select a tier to unlock platform features. Deeper unilevel commissions also require the matching network rank."}
-            </div>
+            {currentTier ? (
+              <div className="hero-sub">
+                You hold {currentTier}. Upgrade prices show only the difference you still owe — downgrades
+                are not available.
+              </div>
+            ) : (
+              <>
+                <div className="hero-sub hero-sub-desktop">
+                  Select a tier to unlock platform features. Deeper unilevel commissions also require the
+                  matching network rank.
+                </div>
+                <div className="hero-sub hero-sub-mobile">
+                  Select a tier to unlock all platform strategies and network commissions.
+                </div>
+              </>
+            )}
           </PageHeroBanner>
 
           {/* TIER CARDS */}

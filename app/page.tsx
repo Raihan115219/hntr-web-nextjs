@@ -1497,7 +1497,7 @@ export default function HomePage() {
                             <div className="npc-su">{pool.targetUsd}</div>
                           </div>
                           <div>
-                            <div className="npc-sl">Community Raised</div>
+                            <div className="npc-sl">Raised</div>
                             <div className="npc-sv raised">
                               {pool.raisedEth.toFixed(2)}
                               <span className="eth-ic"></span>
