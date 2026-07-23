@@ -209,20 +209,6 @@ export default function MarketplacePage() {
     [nfts, marketFilter],
   );
 
-  const totalFloorValue = useMemo(() => {
-    if (!openSeaCollections) return 24_800_000;
-    const eth = Object.values(openSeaCollections).reduce(
-      (sum, c) => sum + (c.stats.floorPrice || 0),
-      0,
-    );
-    return eth * 2900;
-  }, [openSeaCollections]);
-
-  const totalNfts = useMemo(() => {
-    if (!openSeaCollections) return 1_420;
-    return Object.values(openSeaCollections).reduce((sum, c) => sum + (c.stats.nftCount || 0), 0);
-  }, [openSeaCollections]);
-
   const toggleCollection = (name: string) => {
     setCheckedCollections((prev) => ({ ...prev, [name]: !prev[name] }));
   };
@@ -277,20 +263,20 @@ export default function MarketplacePage() {
           <div className="ps">
             <div className="ps-lbl">Total Protocol Value</div>
             <div className="ps-val">
-              ${(totalFloorValue / 1_000_000).toFixed(1)}
+              $0
               <span className="ps-unit">M</span>
             </div>
-            <div className="ps-chg">↑+4.2%</div>
+            <div className="ps-chg">—</div>
           </div>
           <div className="ps">
             <div className="ps-lbl">Total NFTs Owned</div>
-            <div className="ps-val">{totalNfts.toLocaleString()}</div>
-            <div className="ps-chg">↑+12 This Month</div>
+            <div className="ps-val">0</div>
+            <div className="ps-chg">—</div>
           </div>
           <div className="ps">
             <div className="ps-lbl">Avg. Vault Yield</div>
             <div className="ps-val">
-              12.4<span className="ps-unit">%</span>
+              0<span className="ps-unit">%</span>
             </div>
             <div className="ps-chg" style={{ color: "var(--t0)" }}>
               APY — 30D avg
@@ -298,7 +284,7 @@ export default function MarketplacePage() {
           </div>
           <div className="ps">
             <div className="ps-lbl">Total Users</div>
-            <div className="ps-val">48,217</div>
+            <div className="ps-val">0</div>
             <div className="ps-chg" style={{ color: "var(--t0)" }}>
               active
             </div>
