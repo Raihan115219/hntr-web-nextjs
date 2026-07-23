@@ -8,7 +8,8 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import MainLayout from "./components/MainLayout";
-import { BANNER_IMAGES } from "./components/banner-images";
+import HomeHeroBanner from "./components/HomeHeroBanner";
+import { initReveal, setBannerResources } from "../lib/banners";
 import { DEPOSIT_CTA_LABEL } from "../lib/deposit-modal";
 import { hasSeenIntro, markIntroSeen } from "../lib/intro-state";
 import { useRouter } from "nextjs-toploader/app";
@@ -819,22 +820,8 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    window.__resources = {
-      ...(window.__resources || {}),
-      revealTop: "/assets/images/revealTop.jpg",
-      revealBot: "/assets/images/revealBot.png",
-    };
-
-    const existing = document.querySelector(
-      'script[src="/assets/js/script-1.js"]',
-    ) as HTMLScriptElement | null;
-
-    if (!existing) {
-      const script = document.createElement("script");
-      script.src = "/assets/js/script-1.js";
-      script.async = true;
-      document.body.appendChild(script);
-    }
+    setBannerResources();
+    window.__initReveal = initReveal;
   }, []);
 
   // Intro canvas only on desktop
@@ -1291,17 +1278,7 @@ export default function HomePage() {
             opacity: feedOpacity
           }}
         >
-          <div className="hero">
-                <img id="homeRevealCv" src={BANNER_IMAGES.home} alt="" draggable={false} />
-                <div className="home-reveal-shade" />
-                <div className="hero-left" style={{ zIndex: 2, pointerEvents: "none", padding: "26px 24px 26px 24px" }}>
-                  <div className="hero-title" style={{ textShadow: "0 2px 10px rgba(0,0,0,.7)" }}>HNTR</div>
-                  <div className="hero-sub" style={{ color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.6)" }}>Your gateaway to the NFT Universe.</div>
-                </div>
-                <div className="hero-right">
-                  <div className="hero-mosaic" id="mosaic" />
-                </div>
-              </div>
+          <HomeHeroBanner />
 
               <div className="pbar">
                 <div className="pbar-lbl">Partners</div>

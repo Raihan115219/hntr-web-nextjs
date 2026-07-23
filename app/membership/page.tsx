@@ -1,7 +1,7 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { BANNER_IMAGES } from "../components/banner-images";
+import PageHeroBanner from "../components/PageHeroBanner";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useRouter } from "nextjs-toploader/app";
@@ -180,20 +180,19 @@ export default function MembershipPage() {
     <MainLayout>
       <div className="feed" id="feed-membership">
         <div className="page-body">
-          {/* HERO */}
-          <div className="hero">
-            <img id="memBannerCv" src={BANNER_IMAGES.membership} alt="" draggable={false} />
-            <div className="mem-banner-shade"></div>
-            <div className="hero-mosaic" id="heroMosaic"></div>
-            <div className="hero-content">
-              <div className="hero-title">Membership Packages</div>
-              <div className="hero-sub">
-                {currentTier
-                  ? `You hold ${currentTier}. Upgrade prices show only the difference you still owe — downgrades are not available.`
-                  : "Select a tier to unlock platform features. Deeper unilevel commissions also require the matching network rank."}
-              </div>
+          <PageHeroBanner
+            canvasId="memBannerCv"
+            animationKind="membership"
+            shadeClassName="mem-banner-shade"
+            mosaicId="heroMosaic"
+          >
+            <div className="hero-title">Membership Packages</div>
+            <div className="hero-sub">
+              {currentTier
+                ? `You hold ${currentTier}. Upgrade prices show only the difference you still owe — downgrades are not available.`
+                : "Select a tier to unlock platform features. Deeper unilevel commissions also require the matching network rank."}
             </div>
-          </div>
+          </PageHeroBanner>
 
           {/* TIER CARDS */}
           <div className="tiers-grid">

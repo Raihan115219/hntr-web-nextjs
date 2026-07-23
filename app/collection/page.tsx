@@ -488,20 +488,6 @@ export default function CollectionPage() {
     });
   }, [collections, openSeaCollections]);
 
-  const totalFloorValue = useMemo(() => {
-    if (!openSeaCollections) return { eth: 30, usd: "$65,000.32" };
-    const eth = Object.values(openSeaCollections).reduce(
-      (sum, c) => sum + (c.stats.floorPrice || 0),
-      0,
-    );
-    return { eth: Number(eth.toFixed(2)), usd: formatUsd(eth) };
-  }, [openSeaCollections]);
-
-  const totalNftCount = useMemo(() => {
-    if (!openSeaCollections) return 14;
-    return Object.values(openSeaCollections).reduce((sum, c) => sum + (c.stats.nftCount || 0), 0);
-  }, [openSeaCollections]);
-
   const coOwnedNfts = useMemo<CoOwnedNft[]>(() => {
     if (!openSeaCollections) return CO_OWNED_NFTS;
     const out: CoOwnedNft[] = [];
@@ -561,26 +547,26 @@ export default function CollectionPage() {
             <div className="coll-stats">
               <div className="coll-stat">
                 <div className="cs-lbl">NFT Owned</div>
-                <div className="cs-val">{totalNftCount}</div>
+                <div className="cs-val">0</div>
                 <div className="cs-sub">NFTs</div>
               </div>
               <div className="coll-stat">
                 <div className="cs-lbl">Total Value</div>
                 <div className="cs-val">
-                  {totalFloorValue.eth} <span className="eth-ic"></span>
+                  0 <span className="eth-ic"></span>
                 </div>
-                <div className="cs-sub">{totalFloorValue.usd}</div>
+                <div className="cs-sub">$0</div>
               </div>
               <div className="coll-stat">
                 <div className="cs-lbl">Unrealized Profit</div>
                 <div className="cs-val">
-                  42.8<span className="cs-unit">%</span>
+                  0<span className="cs-unit">%</span>
                 </div>
                 <div className="cs-sub">—</div>
               </div>
               <div className="coll-stat">
                 <div className="cs-lbl">Avg. Hold</div>
-                <div className="cs-val">47d</div>
+                <div className="cs-val">0d</div>
                 <div className="cs-sub">days</div>
               </div>
             </div>

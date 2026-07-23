@@ -14,7 +14,6 @@ import { clearStoredAuth } from "../../lib/api";
 import { handleAppError } from "../../lib/errors";
 import { useDashboardData, useClaimCommissions, usePointsSummary } from "../../lib/rewards";
 import type { StandardToastData } from "../../lib/notification-data";
-import { useBannerHoverEffect } from "../hooks/useBannerHoverEffect";
 
 const MOBILE_MQ = "(max-width: 900px)";
 
@@ -133,8 +132,6 @@ export default function MainLayout({
   const showMobileHomeRail = currentPage === "home" && walletConnected && !hideRightRail && isMobileView;
   const showMobileHomeActivity = currentPage === "home" && !hideRightRail && isMobileView;
   const hideMobileRailToggle = isMobileView;
-
-  useBannerHoverEffect();
 
   const maskBalance = (value: string) => (balancesHidden ? "••••••" : value);
 

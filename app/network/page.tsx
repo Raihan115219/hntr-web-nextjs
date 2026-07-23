@@ -1,7 +1,7 @@
 "use client";
 
 import MainLayout from "../components/MainLayout";
-import { BANNER_IMAGES } from "../components/banner-images";
+import PageHeroBanner from "../components/PageHeroBanner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { useRouter } from "nextjs-toploader/app";
@@ -381,23 +381,24 @@ export default function NetworkPage() {
     <MainLayout>
       <div className="feed" id="feed-network">
         <div className="page-body">
-          <div className="hero">
-            <img id="netBannerCv" src={BANNER_IMAGES.network} alt="" draggable={false} />
-            <div className="net-banner-shade"></div>
-            <div className="hero-mosaic" id="networkMosaic"></div>
-            <div className="hero-content">
-              <div className="hero-title">MY NETWORK</div>
-              <div className="hero-sub">HNTR REWARDS DASHBOARD & NETWORK COMMISSIONS</div>
-              <button
-                className="net-refresh-btn"
-                onClick={() => refetchSummary()}
-                disabled={isFetching}
-                title="Refresh rewards data"
-              >
-                {isFetching ? "Refreshing…" : "Refresh"}
-              </button>
-            </div>
-          </div>
+          <PageHeroBanner
+            canvasId="netBannerCv"
+            animationKind="network"
+            shadeClassName="net-banner-shade"
+            mosaicId="networkMosaic"
+            style={{ marginBottom: "18px" }}
+          >
+            <div className="hero-title">MY NETWORK</div>
+            <div className="hero-sub">HNTR REWARDS DASHBOARD &amp; NETWORK COMMISSIONS</div>
+            <button
+              className="net-refresh-btn"
+              onClick={() => refetchSummary()}
+              disabled={isFetching}
+              title="Refresh rewards data"
+            >
+              {isFetching ? "Refreshing…" : "Refresh"}
+            </button>
+          </PageHeroBanner>
 
           <div className="net-top-grid">
             <div
